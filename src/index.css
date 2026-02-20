@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800;900&display=swap');
+
+@layer base {
+  @font-face {
+    font-family: 'Mark Pro';
+    src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_u5un9a.woff2') format('woff2'),
+      url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_cw9z0d.woff') format('woff');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Mark Pro';
+    src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116949/MarkPro-Medium_ovo2ic.woff2') format('woff2'),
+      url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116948/MarkPro-Medium_coqjal.woff') format('woff');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Mark Pro';
+    src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_e07jes.woff2') format('woff2'),
+      url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_yhvupw.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  body {
+    @apply bg-gray-100 text-gray-900;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Outfit', sans-serif;
+    @apply tracking-tight font-black;
+  }
+
+  /* Custom Scrollbar for Webkit */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+
+  .premium-shadow {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  }
+
+  .premium-btn {
+    @apply transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+  }
+}

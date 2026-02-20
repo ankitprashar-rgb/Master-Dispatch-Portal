@@ -1,0 +1,723 @@
+<!doctype html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>IDE — Summary</title>
+  <style>
+    *{box-sizing:border-box}
+
+    /* Mark Pro family – same as Master Dispatch */
+    @font-face{
+      font-family:'Mark Pro';
+      src:url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_u5un9a.woff2') format('woff2'),
+          url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_cw9z0d.woff') format('woff');
+      font-weight:400;
+      font-style:normal;
+      font-display:swap;
+    }
+    @font-face{
+      font-family:'Mark Pro';
+      src:url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116949/MarkPro-Medium_ovo2ic.woff2') format('woff2'),
+          url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116948/MarkPro-Medium_coqjal.woff') format('woff');
+      font-weight:500;
+      font-style:normal;
+      font-display:swap;
+    }
+    @font-face{
+      font-family:'Mark Pro';
+      src:url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_e07jes.woff2') format('woff2'),
+          url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_yhvupw.woff') format('woff');
+      font-weight:700;
+      font-style:normal;
+      font-display:swap;
+    }
+
+    :root{
+      --brand:#D4DE47;
+      --line:#e5e7eb;
+      --text:#111827;
+      --muted:#6b7280;
+      --bg:#f3f4f6;
+    }
+
+    body{
+      margin:0;
+      font:14px 'Mark Pro',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial;
+      color:var(--text);
+      background:var(--bg);
+    }
+
+    .app-shell{
+      max-width:1040px;
+      margin:16px auto 24px;
+      padding:0 12px 24px;
+    }
+
+    header{
+      position:sticky;
+      top:0;
+      z-index:10;
+      background:#f3f4f6;
+      padding-bottom:6px;
+    }
+    header .wrap{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+    }
+
+    .head-left{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    h1{
+      font-size:20px;
+      margin:0;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .subtitle{
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    .nav-row{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:4px;
+    }
+    .nav-btn{
+      border-radius:999px;
+      border:1px solid var(--brand);
+      padding:7px 14px;
+      font-size:11px;
+      font-weight:600;
+      background:var(--brand);
+      color:#111827;
+      text-decoration:none;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .nav-btn:hover{background:#c3cf32;}
+
+    .head-right{
+      text-align:right;
+    }
+    #ideLogo{
+      height:42px;
+      width:auto;
+      display:block;
+      margin-left:auto;
+    }
+
+    main{
+      margin-top:12px;
+    }
+
+    .card{
+      background:#ffffff;
+      border-radius:12px;
+      border:1px solid #e5e7eb;
+      padding:12px 14px 14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.03);
+      margin-bottom:12px;
+    }
+
+    .card-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:8px 14px;
+      margin:0 -14px 10px;
+      background:var(--brand);
+    }
+
+    .card-title{
+      font-size:13px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:#111827;
+    }
+
+    .card-pill{
+      font-size:10px;
+      padding:2px 8px;
+      border-radius:999px;
+      background:#ffffff;
+      color:#111827;
+      font-weight:600;
+      border:1px solid #cbd5f5;
+    }
+
+    .filter-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:flex-end;
+      margin-bottom:8px;
+    }
+
+    label{
+      font-size:11px;
+      font-weight:600;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      color:#4b5563;
+    }
+    input, select{
+      padding:6px 8px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      font-size:12px;
+      font-family:inherit;
+      background:#f9fafb;
+    }
+    input:focus, select:focus{
+      outline:none;
+      border-color:var(--brand);
+      box-shadow:0 0 0 1px rgba(212,222,71,.4);
+      background:#ffffff;
+    }
+
+    .btn{
+      appearance:none;
+      -webkit-appearance:none;
+      background:var(--brand);
+      color:#111827;
+      border:none;
+      border-radius:999px;
+      padding:7px 14px;
+      font-weight:600;
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+    }
+    .btn:visited{color:#111827;}
+
+    .muted{
+      color:var(--muted);
+      font-size:11px;
+    }
+    .dots::after{
+      content:'';
+      display:inline-block;
+      width:1em;
+      animation:dots 1s steps(3,end) infinite;
+    }
+    @keyframes dots{
+      0%{content:''}
+      33%{content:'.'}
+      66%{content:'..'}
+      100%{content:'...'}
+    }
+
+    .hidden{
+      display:none !important;
+    }
+
+    /* TABLE + SCROLL AREA */
+    .table-scroll{
+      max-height:70vh;
+      overflow-y:auto;
+      overflow-x:auto;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      margin-top:6px;
+    }
+
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      font-size:11px;
+      table-layout:auto;
+    }
+    th,td{
+      border:1px solid #e5e7eb;
+      padding:8px 10px;
+      text-align:left;
+      vertical-align:top;
+    }
+    th{
+      background:#f7f7f7;
+      font-weight:600;
+      position:sticky;
+      top:0;
+      z-index:5;
+    }
+    td{
+      white-space:normal;
+    }
+    tr:hover{
+      background:#fafafa;
+    }
+
+    /* prevent squashing – tweak as needed */
+    th:nth-child(1){ min-width: 90px; }   /* Date */
+    th:nth-child(2){ min-width: 120px; }  /* Client */
+    th:nth-child(3){ min-width: 160px; }  /* Address */
+    th:nth-child(4){ min-width: 90px; }   /* POC */
+    th:nth-child(5){ min-width: 140px; }  /* Project */
+    th:nth-child(6){ min-width: 60px; }   /* Qty */
+    th:nth-child(7){ min-width: 80px; }   /* Amount */
+    th:nth-child(8){ min-width: 80px; }   /* E-Way */
+    th:nth-child(9){ min-width: 100px; }  /* Shipping Label */
+    th:nth-child(10){ min-width: 110px; } /* Delivery Challan */
+    th:nth-child(11){ min-width: 130px; } /* Dispatch ID */
+    th:nth-child(12){ min-width: 120px; } /* Tracking ID */
+    th:nth-child(13){ min-width: 120px; } /* Courier */
+    th:nth-child(14){ min-width: 100px; } /* Slip */
+    th:nth-child(15){ min-width: 140px; } /* Email Sent At */
+
+    /* Summary chip */
+    .summary-chip{
+      margin-left:auto;
+      border-radius:999px;
+      background:#111827;
+      color:#f9fafb;
+      font-size:11px;
+      padding:4px 10px;
+      white-space:nowrap;
+    }
+
+    @media (max-width:768px){
+      header .wrap{
+        flex-direction:row;
+        align-items:flex-start;
+      }
+      .head-right{
+        text-align:right;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="wrap">
+        <div class="head-left">
+          <div>
+            <h1>Summary Sheet</h1>
+            <div class="subtitle">Range-based view of all dispatches</div>
+          </div>
+          <div class="nav-row">
+            <a
+              class="nav-btn"
+              href="https://script.google.com/macros/s/AKfycbx3YxInjtvVgpCOdXm9Qin_PgH_RX06wPPck4UaEJCIHfcfENPU12EjHBU-vPSjCss3/exec"
+              target="_top"
+            >
+              ← Back to Dispatch Sheet
+            </a>
+            <a
+              class="nav-btn"
+              href="https://script.google.com/macros/s/AKfycbx3YxInjtvVgpCOdXm9Qin_PgH_RX06wPPck4UaEJCIHfcfENPU12EjHBU-vPSjCss3/exec?view=tracking"
+              target="_top"
+            >
+              Tracking Sheet
+            </a>
+          </div>
+        </div>
+        <div class="head-right">
+          <img
+            id="ideLogo"
+            alt="IDE Logo"
+            src="https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png"
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Filters</div>
+          <div class="card-pill">Summary View</div>
+        </div>
+        <div class="filter-row">
+          <label>
+            From Date
+            <input id="dateFrom" type="date" title="Start date (YYYY-MM-DD)">
+          </label>
+
+          <label>
+            To Date
+            <input id="dateTo" type="date" title="End date (YYYY-MM-DD)">
+          </label>
+
+          <label>
+            Client
+            <select id="client">
+              <option value="">(All)</option>
+            </select>
+          </label>
+
+          <button class="btn" id="btnSearch" type="button">🔍 Search</button>
+
+          <span id="status" class="muted"></span>
+          <span id="summaryChip" class="summary-chip hidden"></span>
+        </div>
+
+        <div class="table-scroll">
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Client</th>
+                <th>Address</th>
+                <th>POC</th>
+                <th>Project</th>
+                <th>Qty</th>
+                <th>Amount</th>
+                <th>E-Way</th>
+                <th>Shipping Label</th>
+                <th>Delivery Challan</th>
+                <th>Dispatch ID</th>
+                <th>Tracking ID</th>
+                <th>Courier</th>
+                <th>Slip</th>
+                <th>Email Sent At</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+  function $(id){ return document.getElementById(id); }
+
+  function hasGoogle(){
+    return (typeof google !== 'undefined') &&
+           google.script &&
+           google.script.run;
+  }
+
+  // ---------- SUMMARY CHIP ----------
+  function updateSummaryChip(summary, rows){
+    var chip = $('summaryChip');
+    if (!chip) return;
+
+    var list = Array.isArray(rows) ? rows : [];
+
+    var count = 0;
+    var totalAmount = 0;
+
+    if (summary && typeof summary === 'object') {
+      if (typeof summary.count === 'number') {
+        count = summary.count;
+      }
+      if (typeof summary.totalAmount === 'number') {
+        totalAmount = summary.totalAmount;
+      }
+    }
+
+    // Fallback to rows if summary not provided by backend
+    if (!count) {
+      count = list.length;
+    }
+    if (!totalAmount) {
+      for (var i = 0; i < list.length; i++) {
+        var v = Number(list[i].amount || 0);
+        if (!isNaN(v)) totalAmount += v;
+      }
+    }
+
+    if (!count) {
+      chip.classList.add('hidden');
+      chip.textContent = '';
+      return;
+    }
+
+    var formattedTotal = '₹' + Number(totalAmount || 0).toLocaleString('en-IN', {
+      maximumFractionDigits: 0
+    });
+
+    chip.textContent = count + ' dispatch' + (count > 1 ? 'es' : '') + ' • ' + formattedTotal;
+    chip.classList.remove('hidden');
+  }
+
+  // ---------- CLIENTS ----------
+  function loadClients() {
+    if (!hasGoogle()) return;
+    google.script.run
+      .withSuccessHandler(function(list){
+        var s = $('client');
+        s.innerHTML = '<option value="">(All)</option>';
+        if (list && list.length) {
+          for (var i=0; i<list.length; i++){
+            var c = list[i];
+            var o = document.createElement('option');
+            o.value = c.name;
+            o.textContent = c.name;
+            s.appendChild(o);
+          }
+        }
+      })
+      .withFailureHandler(function(err){
+        console.log('Clients error:', err);
+      })
+      .api_getClients();
+  }
+
+  // ---------- RENDER TABLE ----------
+  function renderRows(rows) {
+    var tb = $('tbl').getElementsByTagName('tbody')[0];
+    tb.innerHTML = '';
+    if (!rows || !rows.length) {
+      tb.innerHTML = '<tr><td colspan="15">No records found.</td></tr>';
+      return;
+    }
+    for (var i=0; i<rows.length; i++){
+      var r = rows[i];
+      var tr = document.createElement('tr');
+
+      var addr = (r.address || '');
+      addr = addr.toString().replace(/\n/g,'<br>');
+
+      var lbl   = r.label   ? '<a href="'+r.label+'" target="_blank">Open</a>'   : '';
+      var chal  = r.challan ? '<a href="'+r.challan+'" target="_blank">Open</a>' : '';
+      var slip  = r.slip    ? '<a href="'+r.slip+'" target="_blank">Open</a>'    : '';
+      var amt   = (r.amount !== '' && r.amount != null) ? ('₹' + r.amount) : '';
+
+      tr.innerHTML =
+        '<td>' + (r.date    || '') + '</td>' +
+        '<td>' + (r.client  || '') + '</td>' +
+        '<td>' + addr              + '</td>' +
+        '<td>' + (r.poc     || '') + '</td>' +
+        '<td>' + (r.project || '') + '</td>' +
+        '<td>' + (r.qty     || '') + '</td>' +
+        '<td>' + amt               + '</td>' +
+        '<td>' + (r.eway    || '') + '</td>' +
+        '<td>' + lbl               + '</td>' +
+        '<td>' + chal              + '</td>' +
+        '<td>' + (r.did     || '') + '</td>' +
+        '<td>' + (r.track   || '') + '</td>' +
+        '<td>' + (r.courier || '') + '</td>' +
+        '<td>' + slip              + '</td>' +
+        '<td>' + (r.mailed  || '') + '</td>';
+
+      tb.appendChild(tr);
+    }
+  }
+
+  // ---------- SEARCH ----------
+  function runSearch() {
+    if (!hasGoogle()) {
+      alert('Page is still initialising, please wait a moment and try again.');
+      return;
+    }
+
+    var from = $('dateFrom').value;
+    var to   = $('dateTo').value;
+    var c    = $('client').value ? $('client').value.trim() : '';
+
+    $('status').textContent = 'Searching…';
+    $('status').className   = 'muted dots';
+
+    google.script.run
+      .withSuccessHandler(function(res){
+        $('status').textContent = '';
+        $('status').className   = 'muted';
+
+        var rows = [];
+        var summary = null;
+
+        // Handle different backend shapes gracefully
+        if (res && res.ok === false) {
+          alert('Server error while fetching summary: ' + (res.msg || 'Unknown'));
+          updateSummaryChip(null, []);
+          renderRows([]);
+          return;
+        }
+
+        if (Array.isArray(res)) {
+          rows = res;
+        } else if (res && Array.isArray(res.rows)) {
+          rows = res.rows;
+          if (res.summary) summary = res.summary;
+        }
+
+        updateSummaryChip(summary, rows);
+        renderRows(rows);
+      })
+      .withFailureHandler(function(err){
+        console.log('Summary error:', err);
+        $('status').textContent = 'Error: ' + err.message;
+        $('status').className   = 'muted';
+        updateSummaryChip(null, []);
+      })
+      .api_getSummary(from, to, c);   // backend: (fromDate, toDate, client)
+  }
+
+  // ---------- INIT DOM ----------
+  function initDom() {
+    try {
+      // Default: current month range (1st → today in IST)
+      var now = new Date();
+      var year  = now.getFullYear();
+      var month = ('0' + (now.getMonth() + 1)).slice(-2);
+      var todayIST = new Date().toLocaleDateString('en-CA', { timeZone:'Asia/Kolkata' });
+      var firstOfMonth = year + '-' + month + '-01';
+
+      $('dateFrom').value = firstOfMonth;
+      $('dateTo').value   = todayIST;
+    } catch(e) {
+      console.log('Date init error:', e);
+    }
+    $('btnSearch').onclick = runSearch;
+  }
+
+  // ---------- WAIT FOR google.script.run ----------
+  function bootWithGoogle(tries) {
+    if (typeof tries === 'undefined') tries = 0;
+    if (hasGoogle()) {
+      loadClients();
+      runSearch(); // auto-load range
+      return;
+    }
+    if (tries > 40) {
+      console.log('google.script.run never became available');
+      $('status').textContent = 'Could not connect to server (google.script.run not ready).';
+      return;
+    }
+    setTimeout(function(){ bootWithGoogle(tries+1); }, 250);
+  }
+
+  // ---------- GLOBAL INIT ----------
+  window.onload = function(){
+    initDom();
+    bootWithGoogle(0);
+  };
+</script>
+
+<!-- ===== FLOATING CHAT ASSISTANT (DROP-IN MODULE) ===== -->
+<style>
+  #ide-chat-btn{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    background:#D4DE47;
+    color:#111;
+    padding:10px 16px;
+    border-radius:999px;
+    font-family:'Mark Pro';
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    box-shadow:0 3px 6px rgba(0,0,0,0.15);
+    z-index:9999;
+  }
+  #ide-chat-box{
+    position:fixed;
+    bottom:80px;
+    right:20px;
+    width:320px;
+    background:#fff;
+    border:1px solid #e5e7eb;
+    border-radius:12px;
+    box-shadow:0 5px 12px rgba(0,0,0,0.18);
+    padding:12px;
+    display:none;
+    z-index:9999;
+    font-family:'Mark Pro';
+  }
+  #ide-chat-box textarea{
+    width:100%;
+    height:70px;
+    padding:8px;
+    border:1px solid #d1d5db;
+    border-radius:8px;
+    font-family:'Mark Pro';
+    font-size:12px;
+    resize:none;
+  }
+  #ide-chat-send{
+    margin-top:8px;
+    width:100%;
+    background:#D4DE47;
+    border:none;
+    padding:8px 0;
+    border-radius:999px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  #ide-chat-answer{
+    margin-top:10px;
+    font-size:12px;
+    color:#333;
+    max-height:180px;
+    overflow-y:auto;
+    white-space:pre-wrap;
+  }
+</style>
+
+<div id="ide-chat-btn">Chat Assistant</div>
+
+<div id="ide-chat-box">
+  <textarea id="ide-chat-msg" placeholder="Ask me anything about this sheet..."></textarea>
+  <button id="ide-chat-send">Send</button>
+  <div id="ide-chat-answer"></div>
+</div>
+
+<script>
+(function(){
+  const btn  = document.getElementById('ide-chat-btn');
+  const box  = document.getElementById('ide-chat-box');
+  const send = document.getElementById('ide-chat-send');
+  const out  = document.getElementById('ide-chat-answer');
+
+  btn.onclick = ()=> box.style.display = (box.style.display==='none' || box.style.display==='') ? 'block' : 'none';
+
+  send.onclick = function(){
+    const msg = document.getElementById('ide-chat-msg').value.trim();
+    if(!msg){ alert("Enter a question"); return; }
+
+    out.innerHTML = "Thinking…";
+
+    // 🔥 FIXED SCOPE PER PAGE — CHANGE PER FILE
+    const payload = {
+      message: msg,
+      scope:   CHAT_SCOPE,    // defined below
+      page:    CHAT_SCOPE,
+      url:     window.location.href
+    };
+
+    google.script.run
+      .withSuccessHandler(res=>{
+        if(res && res.ok){
+          out.innerHTML = res.answer;
+        } else {
+          out.innerHTML = "Error: " + (res.msg || 'Unknown');
+        }
+      })
+      .withFailureHandler(err=>{
+        out.innerHTML = "Server Error: " + err.message;
+      })
+      .api_dispatchChatAssistant(payload);
+  };
+})();
+</script>
+
+<!-- ===== DEFINE PAGE-SPECIFIC SCOPE HERE ===== -->
+<script>
+  const CHAT_SCOPE = "summary";
+</script>
+
+</body>
+</html>

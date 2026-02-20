@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link href="https://fonts.googleapis.com/css?family=Mark+Pro:400,500,700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --primary-color: #D4DE47;
+        --bg-color: #1a1a1a;
+        --card-bg: #2d2d2d;
+        --text-color: #ffffff;
+        --text-secondary: #a0a0a0;
+        --border-color: #404040;
+      }
+      body {
+        font-family: 'Mark Pro', sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        margin: 0;
+        padding: 20px;
+      }
+      /* ... rest of the CSS from the user's provided code ... */
+    </style>
+  </head>
+  <body>
+    <!-- App Container -->
+    <div class="app-container">
+      <!-- Header -->
+      <div class="header">
+        <h1>Master Dispatch Portal</h1>
+      </div>
+      
+      <!-- Form Content -->
+      <div class="form-section">
+          <!-- Client & Date Row -->
+          <div class="row">
+            <div class="col">
+              <label>Date</label>
+              <input type="date" id="date" required>
+            </div>
+            <div class="col">
+               <label>Client Name</label>
+               <input type="text" id="clientName" list="clientList" placeholder="Search Client...">
+               <datalist id="clientList"></datalist>
+            </div>
+          </div>
+          
+          <!-- ... rest of the form fields ... -->
+          
+          <!-- Item List Section -->
+          <div id="itemList">
+            <!-- Dynamic rows will be added here -->
+          </div>
+          
+          <button id="addItemBtn">Add Item</button>
+
+          <!-- Totals Section -->
+          <div class="totals-section">
+             <!-- Subtotal, GST, Total Amount -->
+          </div>
+
+          <!-- Submit Button -->
+          <button id="submitBtn" onclick="submitDispatch()">Submit Dispatch</button>
+      </div>
+    </div>
+
+    <script>
+      // script content including submitDispatch, loadClients, etc.
+      // ...
+    </script>
+  </body>
+</html>

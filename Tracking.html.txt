@@ -1,0 +1,1021 @@
+<!doctype html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>IDE — Tracking Sheet</title>
+  <style>
+    *{box-sizing:border-box}
+
+    /* Mark Pro font family */
+    @font-face{
+      font-family:'Mark Pro';
+      src:url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_u5un9a.woff2') format('woff2'),
+          url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_cw9z0d.woff') format('woff');
+      font-weight:400;
+      font-style:normal;
+      font-display:swap;
+    }
+    @font-face{
+      font-family:'Mark Pro';
+      src:url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116949/MarkPro-Medium_ovo2ic.woff2') format('woff2'),
+          url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116948/MarkPro-Medium_coqjal.woff') format('woff');
+      font-weight:500;
+      font-style:normal;
+      font-display:swap;
+    }
+    @font-face{
+      font-family:'Mark Pro';
+      src:url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_e07jes.woff2') format('woff2'),
+          url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_yhvupw.woff') format('woff');
+      font-weight:700;
+      font-style:normal;
+      font-display:swap;
+    }
+
+    :root{
+      --brand:#D4DE47;
+      --line:#e5e7eb;
+      --text:#111827;
+      --muted:#6b7280;
+      --bg:#f3f4f6;
+    }
+
+    body{
+      margin:0;
+      font:14px 'Mark Pro',-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial;
+      color:var(--text);
+      background:var(--bg);
+    }
+
+    .app-shell{
+      max-width:1040px;
+      margin:16px auto 24px;
+      padding:0 12px 24px;
+    }
+
+    header{
+      position:sticky;
+      top:0;
+      z-index:10;
+      background:#f3f4f6;
+      padding-bottom:6px;
+    }
+    header .wrap{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+    }
+
+    .head-left{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    h1{
+      font-size:20px;
+      margin:0;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .subtitle{
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    .nav-row{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-top:4px;
+    }
+    .nav-btn{
+      border-radius:999px;
+      border:1px solid var(--brand);
+      padding:7px 14px;
+      font-size:11px;
+      font-weight:600;
+      background:var(--brand);
+      color:#111827;
+      text-decoration:none;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .nav-btn:hover{background:#c3cf32;}
+
+    .head-right{
+      text-align:right;
+    }
+    #ideLogo{
+      height:42px;
+      width:auto;
+      display:block;
+      margin-left:auto;
+    }
+
+    main{
+      margin-top:12px;
+    }
+
+    .card{
+      background:#ffffff;
+      border-radius:12px;
+      border:1px solid #e5e7eb;
+      padding:12px 14px 14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.03);
+      margin-bottom:12px;
+    }
+
+    .card-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:8px 14px;
+      margin:0 -14px 10px;
+      background:var(--brand);
+    }
+
+    .card-title{
+      font-size:13px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:#111827;
+    }
+
+    .card-pill{
+      font-size:10px;
+      padding:2px 8px;
+      border-radius:999px;
+      background:#ffffff;
+      color:#111827;
+      font-weight:600;
+      border:1px solid #cbd5f5;
+    }
+
+    .filter-row{
+      display:grid;
+      grid-template-columns:repeat(3,1fr) auto;
+      gap:12px;
+      align-items:end;
+      margin-bottom:8px;
+    }
+
+    label{
+      font-size:11px;
+      font-weight:600;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      color:#4b5563;
+    }
+
+    input[type="date"],
+    input[type="text"],
+    input[type="url"],
+    select{
+      padding:6px 8px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      font-size:12px;
+      font-family:inherit;
+      background:#f9fafb;
+    }
+    input:focus,
+    select:focus{
+      outline:none;
+      border-color:var(--brand);
+      box-shadow:0 0 0 1px rgba(212,222,71,.4);
+      background:#ffffff;
+    }
+
+    .btn{
+      appearance:none;
+      -webkit-appearance:none;
+      background:var(--brand);
+      color:#111827;
+      border:none;
+      border-radius:999px;
+      padding:7px 14px;
+      font-weight:600;
+      cursor:pointer;
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+    }
+
+    .btn:disabled{
+      opacity:.5;
+      cursor:not-allowed;
+    }
+
+    .muted{
+      color:var(--muted);
+      font-size:11px;
+    }
+    .dots::after{
+      content:'';
+      display:inline-block;
+      width:1em;
+      animation:dots 1s steps(3,end) infinite;
+    }
+    @keyframes dots{
+      0%{content:''}
+      33%{content:'.'}
+      66%{content:'..'}
+      100%{content:'...'}
+    }
+
+    /* Table container with vertical scroll */
+    .table-shell{
+      max-height:60vh;
+      overflow-y:auto;
+      overflow-x:auto;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+      margin-top:6px;
+      background:#ffffff;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:11px;
+      min-width:900px; /* wide enough so columns aren’t squashed */
+    }
+    th,td{
+      border:1px solid #e5e7eb;
+      padding:6px;
+      text-align:left;
+      vertical-align:top;
+      white-space:nowrap;
+    }
+    td:nth-child(7),
+    td:nth-child(8){
+      white-space:normal; /* allow wrapping for long URLs / text */
+    }
+    th{
+      background:#f7f7f7;
+      font-weight:600;
+      position:sticky;
+      top:0;
+      z-index:1;
+    }
+    tr:hover{
+      background:#fafafa;
+    }
+
+    /* Column width guidance */
+    th:nth-child(1){min-width:100px;} /* Date */
+    th:nth-child(2){min-width:150px;} /* Client */
+    th:nth-child(3){min-width:150px;} /* Project */
+    th:nth-child(4){min-width:140px;} /* Dispatch ID */
+    th:nth-child(5){min-width:140px;} /* Tracking ID */
+    th:nth-child(6){min-width:130px;} /* Courier */
+    th:nth-child(7){min-width:220px;} /* Tracking / Courier Link */
+    th:nth-child(8){min-width:170px;} /* Courier Slip */
+    th:nth-child(9){min-width:150px;} /* E-way Bill */
+    th:nth-child(10){min-width:150px;}/* Action */
+    th:nth-child(11){min-width:150px;}/* Email Sent */
+
+    td input[type="text"],
+    td input[type="url"]{
+      width:100%;
+      padding:6px;
+      border:1px solid var(--line);
+      border-radius:6px;
+      font-size:11px;
+      font-family:inherit;
+      background:#f9fafb;
+    }
+
+    td .uploader{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      margin-top:2px;
+    }
+    .preview{
+      max-height:240px;
+      border:1px solid var(--line);
+      border-radius:6px;
+      margin-top:6px;
+    }
+
+    .btn-small{
+      padding:5px 10px;
+      font-size:11px;
+      box-shadow:0 1px 3px rgba(0,0,0,.12);
+    }
+
+    .hidden{
+      display:none !important;
+    }
+
+    /* Tiny summary chip */
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      border-radius:999px;
+      background:#e5e7eb;
+      color:#374151;
+      font-size:11px;
+      padding:4px 10px;
+      margin-top:4px;
+    }
+
+    /* ============ Chat Assistant ============ */
+    .chat-launcher{
+      position:fixed;
+      right:18px;
+      bottom:18px;
+      z-index:50;
+      background:#111827;
+      color:#f9fafb;
+      border-radius:999px;
+      padding:8px 14px;
+      font-size:11px;
+      font-weight:600;
+      cursor:pointer;
+      box-shadow:0 4px 12px rgba(0,0,0,.25);
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .chat-launcher span.icon{
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background:var(--brand);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-size:11px;
+      color:#111827;
+      font-weight:700;
+    }
+
+    .chat-panel{
+      position:fixed;
+      right:18px;
+      bottom:60px;
+      width:320px;
+      max-height:420px;
+      background:#ffffff;
+      border-radius:14px;
+      box-shadow:0 12px 30px rgba(0,0,0,.3);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      z-index:51;
+    }
+    .chat-header{
+      padding:8px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom:1px solid #e5e7eb;
+      background:#111827;
+      color:#f9fafb;
+    }
+    .chat-header-title{
+      font-size:11px;
+      font-weight:600;
+    }
+    .chat-header-sub{
+      font-size:10px;
+      color:#9ca3af;
+    }
+    .chat-close{
+      border:none;
+      background:transparent;
+      color:#f9fafb;
+      cursor:pointer;
+      font-size:14px;
+      line-height:1;
+    }
+
+    .chat-body{
+      flex:1;
+      padding:8px;
+      overflow-y:auto;
+      background:#f3f4f6;
+    }
+    .chat-message{
+      margin-bottom:8px;
+      font-size:11px;
+      line-height:1.4;
+      max-width:90%;
+    }
+    .chat-message.user{
+      margin-left:auto;
+      text-align:right;
+    }
+    .chat-bubble{
+      display:inline-block;
+      padding:6px 9px;
+      border-radius:10px;
+    }
+    .chat-message.user .chat-bubble{
+      background:#111827;
+      color:#f9fafb;
+      border-bottom-right-radius:2px;
+    }
+    .chat-message.assistant .chat-bubble{
+      background:#ffffff;
+      color:#111827;
+      border-bottom-left-radius:2px;
+      border:1px solid #e5e7eb;
+    }
+
+    .chat-footer{
+      padding:6px 8px;
+      border-top:1px solid #e5e7eb;
+      background:#f9fafb;
+    }
+    .chat-footer-row{
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    #chatInput{
+      flex:1;
+      border-radius:999px;
+      border:1px solid #d1d5db;
+      padding:6px 10px;
+      font-size:11px;
+      font-family:inherit;
+    }
+    #chatSend{
+      border:none;
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:11px;
+      font-weight:600;
+      background:var(--brand);
+      color:#111827;
+      cursor:pointer;
+    }
+    #chatSend:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+    }
+    .chat-status{
+      margin-top:4px;
+      font-size:10px;
+      color:#6b7280;
+    }
+
+    @media (max-width:768px){
+      header .wrap{
+        flex-direction:row;
+        align-items:flex-start;
+      }
+      .filter-row{
+        grid-template-columns:1fr;
+      }
+      .chat-panel{
+        width:94%;
+        right:3%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="wrap">
+        <div class="head-left">
+          <div>
+            <h1>Tracking Sheet</h1>
+            <div class="subtitle">Update courier details & notify clients</div>
+          </div>
+          <div class="nav-row">
+            <a
+              class="nav-btn"
+              href="https://script.google.com/macros/s/AKfycbx3YxInjtvVgpCOdXm9Qin_PgH_RX06wPPck4UaEJCIHfcfENPU12EjHBU-vPSjCss3/exec"
+              target="_blank"
+            >
+              ← Back to Dispatch Sheet
+            </a>
+            <a
+              class="nav-btn"
+              href="https://script.google.com/macros/s/AKfycbx3YxInjtvVgpCOdXm9Qin_PgH_RX06wPPck4UaEJCIHfcfENPU12EjHBU-vPSjCss3/exec?view=summary"
+              target="_blank"
+            >
+              Summary Sheet
+            </a>
+          </div>
+        </div>
+        <div class="head-right">
+          <img
+            id="ideLogo"
+            alt="IDE Logo"
+            src="https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png"
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Tracking Updates</div>
+          <div class="card-pill">Per Dispatch</div>
+        </div>
+
+        <div class="filter-row">
+          <label>
+            From Date
+            <input id="fromDate" type="date">
+          </label>
+          <label>
+            To Date
+            <input id="toDate" type="date">
+          </label>
+          <label>
+            Quick Note
+            <span class="muted">Leave To Date empty to load only one day.</span>
+          </label>
+          <button id="loadBtn" class="btn" type="button">Load Dispatches</button>
+        </div>
+        <div class="muted" id="status" style="margin-top:4px;"></div>
+        <div id="summaryChip" class="chip hidden"></div>
+
+        <div id="listWrap" class="hidden">
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Client</th>
+                  <th>Project</th>
+                  <th>Dispatch ID</th>
+                  <th>Tracking ID</th>
+                  <th>Courier</th>
+                  <th>Tracking / Courier Link</th>
+                  <th>Courier Slip</th>
+                  <th>E-way Bill</th>
+                  <th>Action</th>
+                  <th>Email Sent</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Floating Chat Assistant -->
+  <div id="chatLauncher" class="chat-launcher">
+    <span class="icon">?</span>
+    <span>Chat Assistant</span>
+  </div>
+
+  <div id="chatPanel" class="chat-panel hidden">
+    <div class="chat-header">
+      <div>
+        <div class="chat-header-title">Chat Assistant</div>
+        <div class="chat-header-sub">Help for Tracking Sheet</div>
+      </div>
+      <button id="chatClose" class="chat-close" type="button">×</button>
+    </div>
+    <div id="chatBody" class="chat-body">
+      <div class="chat-message assistant">
+        <div class="chat-bubble">
+          Hi! Ask me anything about how to use the Master Dispatch, Tracking and Summary flows.
+        </div>
+      </div>
+    </div>
+    <div class="chat-footer">
+      <div class="chat-footer-row">
+        <input id="chatInput" type="text" placeholder="Type your question…">
+        <button id="chatSend" type="button">Send</button>
+      </div>
+      <div id="chatStatus" class="chat-status">Online</div>
+    </div>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  function hasGoogle(){
+    return (typeof google !== 'undefined') &&
+           google.script &&
+           google.script.run;
+  }
+
+  // --------- LOAD DISPATCHES (DATE RANGE) ----------
+  function loadRange(){
+    const from = $('fromDate').value;
+    let to     = $('toDate').value;
+
+    const chip = $('summaryChip');
+    chip.classList.add('hidden');
+    chip.textContent = '';
+
+    if (!from && !to){
+      alert('Select at least a From Date.');
+      return;
+    }
+
+    if (!to) to = from; // single-day search
+
+    $('status').textContent = 'Loading…';
+    $('status').className   = 'muted dots';
+
+    google.script.run
+      .withSuccessHandler(res=>{
+        console.log('api_listDispatchesByRange_v1 raw response:', res);
+        $('status').textContent = '';
+        $('status').className   = 'muted';
+        const tb = $('tbody');
+        tb.innerHTML = '';
+
+        if (!res || typeof res !== 'object') {
+          $('listWrap').classList.add('hidden');
+          alert('No response from server.');
+          return;
+        }
+
+        if (res.ok === false) {
+          $('listWrap').classList.add('hidden');
+          alert(res.msg ? ('Error: ' + res.msg) : 'No dispatches found.');
+          return;
+        }
+
+        const rowsRaw = Array.isArray(res.rows) ? res.rows : [];
+        const rows = rowsRaw.filter(r => r && r.dispatchId && String(r.dispatchId).trim() !== '');
+
+        if (!rows.length) {
+          $('listWrap').classList.add('hidden');
+          alert('No dispatches (with Dispatch ID) found in this range.');
+          return;
+        }
+
+        // ✅ Show summary chip
+        const count = rows.length;
+        const label = count === 1 ? 'dispatch' : 'dispatches';
+        chip.textContent = `Showing ${count} ${label} from ${from} to ${to}`;
+        chip.classList.remove('hidden');
+
+        $('listWrap').classList.remove('hidden');
+
+        rows.forEach(row=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row.date        || ''}</td>
+            <td>${row.clientName  || ''}</td>
+            <td>${row.project     || ''}</td>
+            <td>${row.dispatchId  || ''}</td>
+            <td><input type="text" value="${row.trackingId||''}" placeholder="Tracking ID"></td>
+            <td><input type="text" value="${row.courier   ||''}" placeholder="Courier"></td>
+            <td><input type="url"  value="${row.slipLink || ''}" placeholder="https://… tracking / courier link"></td>
+            <td>
+              <div class="uploader">
+                <input type="file" accept=".png,.jpg,.jpeg,.pdf">
+                <button class="btn btn-small" type="button">Get Courier Details</button>
+              </div>
+              <div class="muted" style="margin-top:4px;font-size:11px">Suggestions will appear below</div>
+              <div class="muted" style="margin-top:4px;font-size:11px" data-suggestions></div>
+              <img class="preview" style="display:none">
+            </td>
+            <td>
+              <div class="uploader">
+                <input type="file" accept=".pdf,.png,.jpg,.jpeg">
+              </div>
+              <div class="muted" style="margin-top:4px;font-size:11px" data-eway-hint></div>
+            </td>
+            <td>
+              <button class="btn btn-small" type="button">Update &amp; Email</button>
+              <div class="muted" style="font-size:11px;margin-top:4px"></div>
+            </td>
+            <td>${row.emailSentAt || ''}</td>`;
+
+          const tds      = tr.querySelectorAll('td');
+          const inpTid   = tds[4].querySelector('input');
+          const inpCour  = tds[5].querySelector('input');
+          const inpUrl   = tds[6].querySelector('input');
+
+          // Courier slip cell (column 8)
+          const slipCell = tds[7];
+          const fileSlip = slipCell.querySelector('input[type=file]');
+          const btnOcr   = slipCell.querySelector('button');
+          const prev     = slipCell.querySelector('img.preview');
+          const sugg     = slipCell.querySelector('[data-suggestions]');
+
+          // E-way bill cell (column 9)
+          const ewayCell      = tds[8];
+          const ewayFileInput = ewayCell.querySelector('input[type=file]');
+          const ewayHint      = ewayCell.querySelector('[data-eway-hint]');
+
+          // Action cell (column 10)
+          const btnSave = tds[9].querySelector('button');
+          const msg     = tds[9].querySelector('div');
+
+          // ---- Grey out Update & Email if Email Sent At has value ----
+          if (row.emailSentAt && String(row.emailSentAt).trim() !== '') {
+            btnSave.disabled = true;
+            btnSave.textContent = 'Email Sent';
+          }
+
+          // ---- Enable / disable E-way column based on E-Way flag ----
+          const ewayFlag     = (row.eway || '').toString().trim().toUpperCase();
+          const ewayRequired = (ewayFlag === 'YES');
+
+          if (!ewayRequired) {
+            ewayFileInput.disabled = true;
+            ewayHint.textContent   = 'Not required (dispatch below ₹50,000).';
+          } else {
+            ewayFileInput.disabled = false;
+            ewayHint.textContent   = 'Required (Total incl. GST above ₹50,000).';
+          }
+
+          // ----- OCR ON COURIER SLIP -----
+          btnOcr.onclick = async ()=>{
+            if(!fileSlip.files[0]){ alert('Choose courier slip image/PDF'); return; }
+            const f = fileSlip.files[0];
+
+            if(f.type.startsWith('image/')){
+              const url=URL.createObjectURL(f);
+              prev.src=url; prev.style.display='block';
+            } else {
+              prev.style.display='none';
+            }
+
+            btnOcr.disabled=true; btnOcr.textContent='OCR…';
+            sugg.textContent = '';
+
+            try{
+              const dataUrl = await new Promise((res,rej)=>{
+                const r=new FileReader();
+                r.onload = ()=>res(r.result);
+                r.onerror= rej;
+                r.readAsDataURL(f);
+              });
+              google.script.run
+                .withSuccessHandler(r=>{
+                  btnOcr.disabled=false; btnOcr.textContent='Get Courier Details';
+                  if(r && r.ok){
+                    if(r.tracking) inpTid.value = r.tracking;
+                    if(r.courier)  inpCour.value = r.courier;
+                    if(Array.isArray(r.candidates) && r.candidates.length){
+                      sugg.textContent = 'Suggestions: ' + r.candidates.join(', ');
+                    }
+                  } else {
+                    alert('OCR error: '+(r && r.msg ? r.msg : 'unknown'));
+                  }
+                })
+                .withFailureHandler(err=>{
+                  btnOcr.disabled=false; btnOcr.textContent='Get Courier Details';
+                  alert('Server error: '+err.message);
+                })
+                .api_ocrVisionOnly(f.name, dataUrl);
+            }catch(e){
+              btnOcr.disabled=false; btnOcr.textContent='Get Courier Details';
+              alert('Read error: '+e.message);
+            }
+          };
+
+          // ----- UPDATE & EMAIL -----
+          btnSave.onclick = ()=>{
+            if (btnSave.disabled) return; // safety
+
+            const tid = inpTid.value.trim();
+            if (!tid) { alert('Enter tracking ID'); return; }
+
+            btnSave.disabled = true;
+            msg.textContent  = 'Sending…';
+
+            const courier   = inpCour.value.trim();
+            const docketUrl = inpUrl.value.trim();
+
+            const slipFile  = fileSlip.files[0]   || null;
+            const ewayFile  = ewayFileInput.files[0] || null;
+
+            function callServer(payload){
+              google.script.run
+                .withSuccessHandler(r=>{
+                  if (r && r.ok){
+                    msg.textContent = 'Updated & emailed.';
+                    btnSave.textContent = 'Email Sent';
+                    btnSave.disabled = true;
+                  } else {
+                    msg.textContent = 'Failed: ' + (r && r.msg ? r.msg : 'unknown');
+                    btnSave.disabled = false;
+                  }
+                })
+                .withFailureHandler(err=>{
+                  btnSave.disabled = false;
+                  msg.textContent = 'Server error: ' + err.message;
+                })
+                .api_updateTrackingAndNotify_v4(payload);
+            }
+
+            // Helper: read a file to dataUrl
+            function readAsDataUrl(file, cb, onError){
+              const reader = new FileReader();
+              reader.onload  = e => cb(e.target.result);
+              reader.onerror = e => onError(e);
+              reader.readAsDataURL(file);
+            }
+
+            // Case 1: no files at all
+            if (!slipFile && !ewayFile){
+              const payload = {
+                rowIndex:   row.rowIndex,
+                trackingId: tid,
+                courier:    courier,
+                docketUrl:  docketUrl,
+                slipFile:   null,
+                ewayFile:   null
+              };
+              callServer(payload);
+              return;
+            }
+
+            const basePayload = {
+              rowIndex:   row.rowIndex,
+              trackingId: tid,
+              courier:    courier,
+              docketUrl:  docketUrl,
+              slipFile:   null,
+              ewayFile:   null
+            };
+
+            // Case 2: only slip
+            if (slipFile && !ewayFile){
+              readAsDataUrl(slipFile, dataUrl=>{
+                basePayload.slipFile = {
+                  name: slipFile.name,
+                  dataUrl: dataUrl
+                };
+                callServer(basePayload);
+              }, e=>{
+                btnSave.disabled = false;
+                msg.textContent = 'Slip read error: ' + e.message;
+              });
+              return;
+            }
+
+            // Case 3: only e-way
+            if (!slipFile && ewayFile){
+              readAsDataUrl(ewayFile, dataUrl=>{
+                basePayload.ewayFile = {
+                  name: ewayFile.name,
+                  dataUrl: dataUrl
+                };
+                callServer(basePayload);
+              }, e=>{
+                btnSave.disabled = false;
+                msg.textContent = 'E-way bill read error: ' + e.message;
+              });
+              return;
+            }
+
+            // Case 4: both slip and e-way present
+            readAsDataUrl(slipFile, slipData=>{
+              basePayload.slipFile = {
+                name: slipFile.name,
+                dataUrl: slipData
+              };
+              readAsDataUrl(ewayFile, ewayData=>{
+                basePayload.ewayFile = {
+                  name: ewayFile.name,
+                  dataUrl: ewayData
+                };
+                callServer(basePayload);
+              }, e=>{
+                btnSave.disabled = false;
+                msg.textContent = 'E-way bill read error: ' + e.message;
+              });
+            }, e=>{
+              btnSave.disabled = false;
+              msg.textContent = 'Slip read error: ' + e.message;
+            });
+          };
+
+          $('tbody').appendChild(tr);
+        });
+      })
+      .withFailureHandler(err=>{
+        console.log('api_listDispatchesByRange_v1 failure:', err);
+        $('status').textContent='Error: '+err.message;
+        $('status').className   ='muted';
+        alert('Error loading dispatches: '+err.message);
+      })
+      .api_listDispatchesByRange_v1(from, to);
+  }
+
+  // ============ CHAT ASSISTANT LOGIC ============
+  const CHAT_CONFIG = {
+    scope: 'tracking',
+    page:  'tracking'
+  };
+
+  function appendMessage(role, text){
+    const body = $('chatBody');
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-message ' + (role === 'user' ? 'user' : 'assistant');
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+    bubble.innerHTML = text.replace(/\n/g,'<br>');
+    wrap.appendChild(bubble);
+    body.appendChild(wrap);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function openChat(){
+    $('chatPanel').classList.remove('hidden');
+    $('chatInput').focus();
+  }
+
+  function closeChat(){
+    $('chatPanel').classList.add('hidden');
+  }
+
+  function sendChat(){
+    const input = $('chatInput');
+    const status = $('chatStatus');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    if (!hasGoogle()){
+      alert('Server not ready yet. Please try again in a moment.');
+      return;
+    }
+
+    appendMessage('user', msg);
+    input.value = '';
+    status.textContent = 'Thinking about your question…';
+    $('chatSend').disabled = true;
+
+    const payload = {
+      message:   msg,
+      scope:     CHAT_CONFIG.scope,
+      page:      CHAT_CONFIG.page,
+      url:       (typeof location !== 'undefined' ? location.href : ''),
+      timestamp: new Date().toISOString()
+    };
+
+    google.script.run
+      .withSuccessHandler(res=>{
+        $('chatSend').disabled = false;
+        if (!res){
+          status.textContent = 'No response from assistant.';
+          return;
+        }
+        if (res.ok === false){
+          status.textContent = 'Error: ' + (res.msg || 'Unknown');
+          return;
+        }
+        status.textContent = 'Online';
+        const ans = res.answer || 'No answer received.';
+        appendMessage('assistant', ans);
+      })
+      .withFailureHandler(err=>{
+        $('chatSend').disabled = false;
+        status.textContent = 'Server error: ' + (err && err.message ? err.message : 'Unknown');
+      })
+      .api_dispatchChatAssistant(payload);
+  }
+
+  function init(){
+    const todayIST = new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'});
+    $('fromDate').value = todayIST;
+    $('toDate').value   = todayIST;
+
+    $('loadBtn').onclick = function(){
+      if(!hasGoogle()){
+        alert('Page is still initialising, please try again in a moment.');
+        return;
+      }
+      loadRange();
+    };
+
+    // Chat events
+    $('chatLauncher').onclick = openChat;
+    $('chatClose').onclick    = closeChat;
+    $('chatSend').onclick     = sendChat;
+    $('chatInput').addEventListener('keydown', function(e){
+      if (e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        sendChat();
+      }
+    });
+  }
+
+  window.onload = init;
+</script>
+</body>
+</html>

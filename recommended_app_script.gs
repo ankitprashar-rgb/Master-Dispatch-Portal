@@ -1,0 +1,807 @@
+/**
+ * MASTER DISPATCH BACKEND V3 (Consolidated)
+ */
+
+var SUPABASE_URL = 'https://trgvsjirzofgkheaqzne.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_ZjOD9CABLbLXCmiIWVIqxg_3JEHzQv8';
+
+function onOpen() {
+  try {
+    var ui = SpreadsheetApp.getUi();
+    ui.createMenu('🚀 Master Dispatch')
+        .addItem('Sync to Portal (Supabase)', 'api_syncSheetToSupabase_v3')
+        .addToUi();
+  } catch (e) {
+    Logger.log('UI not available: ' + e.message);
+  }
+}
+
+function doGet(e) {
+  var data = getMasterData();
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getMasterData() {
+  var SHEET_ID = '1SB1kikWg5B20wE47RBZHsuqLvKFj1wN2XY_mEDpI58g'; // Client DB
+  var MASTER_SHEET_ID = '1WVh5Nc_wtBfrFQrJCno63mQXd47oJZjgU27jTApwjJY'; // Masters Tracking Sheet
+  
+  try {
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    
+    // --- STEP 1: READ CLIENT DETAILS ---
+    var clientDetailsMap = {};
+    var sheetClients = ss.getSheetByName('Clients');
+    if (sheetClients) {
+      var cData = sheetClients.getDataRange().getValues();
+      if (cData.length > 1) {
+        var cHeaders = cData[0].map(function(h) { return String(h).toLowerCase().trim(); });
+        var idxCName = cHeaders.indexOf('client name');
+        var idxPoc   = cHeaders.indexOf('poc name');
+        if (idxPoc === -1) idxPoc = cHeaders.indexOf('poc');
+        var idxPhone = cHeaders.indexOf('phone');
+        var idxAddr  = cHeaders.indexOf('address');
+        if (idxAddr === -1) idxAddr = cHeaders.indexOf('details');
+        var idxEmail = cHeaders.indexOf('email');
+
+        if (idxCName > -1) {
+           var cRows = cData.slice(1);
+           cRows.forEach(function(r) {
+             var nm = String(r[idxCName]).trim();
+             if (nm) {
+               clientDetailsMap[nm] = {
+                 poc:     (idxPoc > -1)   ? String(r[idxPoc] || '').trim() : '',
+                 phone:   (idxPhone > -1) ? String(r[idxPhone] || '').trim() : '',
+                 address: (idxAddr > -1)  ? String(r[idxAddr] || '').trim() : '',
+                 email:   (idxEmail > -1) ? String(r[idxEmail] || '').trim() : ''
+               };
+             }
+           });
+        }
+      }
+    }
+    
+    // --- STEP 2: READ INSTALLERS ---
+    var installersList = [];
+    var sheetInstallers = ss.getSheetByName('Installers');
+    if (sheetInstallers) {
+      var iData = sheetInstallers.getDataRange().getValues();
+      if (iData.length > 1) {
+        var iHeaders = iData[0].map(function(h) { return String(h).toLowerCase().trim(); });
+        var idxIName = iHeaders.indexOf('installer name');
+        var idxCity  = iHeaders.indexOf('city');
+        var idxAddr  = iHeaders.indexOf('address');
+        var idxPoc   = iHeaders.indexOf('poc');
+        var idxPhone = iHeaders.indexOf('phone');
+        var idxEmail = iHeaders.indexOf('email');
+
+        var iRows = iData.slice(1);
+        iRows.forEach(function(r) {
+          if (r[idxIName]) {
+            installersList.push({
+              name:    String(r[idxIName]).trim(),
+              city:    (idxCity > -1)  ? String(r[idxCity] || '').trim() : '',
+              address: (idxAddr > -1)  ? String(r[idxAddr] || '').trim() : '',
+              poc:     (idxPoc > -1)   ? String(r[idxPoc] || '').trim() : '',
+              phone:   (idxPhone > -1) ? String(r[idxPhone] || '').trim() : '',
+              email:   (idxEmail > -1) ? String(r[idxEmail] || '').trim() : ''
+            });
+          }
+        });
+      }
+    }
+
+    // --- STEP 3: READ PROJECTS & ITEMS ---
+    var SHEET_NAME = 'Project_WorkOrder';
+    var sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return { clients: [], installers: installersList, error: 'Sheet "' + SHEET_NAME + '" not found' };
+    
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return { clients: [], installers: installersList };
+    
+    var headers = data[0].map(function(h) { return String(h).toLowerCase().trim(); });
+    var rows = data.slice(1);
+    
+    var idxClient = headers.indexOf('client name');
+    var idxProject = headers.indexOf('project name');
+    var idxProduct = headers.indexOf('product name');
+    var idxQty = headers.indexOf('master qty');
+    var idxPrice = headers.indexOf('unit price');
+    if (idxPrice === -1) idxPrice = headers.indexOf('unit price (₹)');
+    
+    var clientsMap = {};
+    
+    rows.forEach(function(row) {
+      var clientName = row[idxClient];
+      var projectName = row[idxProject];
+      
+      if (!clientName || !projectName) return;
+      clientName = String(clientName).trim();
+      projectName = String(projectName).trim();
+      
+      if (!clientsMap[clientName]) {
+        var details = clientDetailsMap[clientName] || {};
+        clientsMap[clientName] = { 
+          name: clientName,
+          address: details.address || '',
+          poc: details.poc || '',
+          phone: details.phone || '',
+          email: details.email || '',
+          projectsMap: {} 
+        };
+      }
+      
+      var clientObj = clientsMap[clientName];
+      if (!clientObj.projectsMap[projectName]) {
+        clientObj.projectsMap[projectName] = { name: projectName, items: [] };
+      }
+      
+      var item = {
+        desc: row[idxProduct] ? String(row[idxProduct]).trim() : '',
+        masterQty: row[idxQty] || 0,
+        rate: row[idxPrice] || 0
+      };
+      
+      if (item.desc) {
+         clientObj.projectsMap[projectName].items.push(item);
+      }
+    });
+    
+    var clientList = Object.keys(clientsMap).map(function(cName) {
+      var c = clientsMap[cName];
+      var projects = Object.keys(c.projectsMap).map(function(pName) { return c.projectsMap[pName]; });
+      projects.sort(function(a, b) { return a.name.localeCompare(b.name); });
+      return {
+        name: c.name,
+        address: c.address,
+        poc: c.poc,
+        phone: c.phone,
+        email: c.email,
+        projects: projects
+      };
+    });
+    
+    clientList.sort(function(a, b) { return a.name.localeCompare(b.name); });
+    
+    return { clients: clientList, installers: installersList };
+    
+  } catch (err) {
+    return { error: String(err) };
+  }
+}
+
+/**
+ * Handle CORS Preflight Requests
+ */
+function doOptions(e) {
+  var headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+  };
+  return ContentService.createTextOutput("")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+/**
+ * Handle POST Actions: OCR, Create Dispatch, Update Dispatch
+ */
+function doPost(e) {
+  // If the payload is text/plain but actually JSON, parse it
+  var postData = {};
+  try {
+    postData = JSON.parse(e.postData.contents);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Invalid JSON payload' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  var action = postData.action;
+  
+  if (action === 'ocr') {
+    return ContentService.createTextOutput(JSON.stringify(handleOCR(postData)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  if (action === 'notify') {
+    return ContentService.createTextOutput(JSON.stringify(handleNotify(postData)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  if (action === 'update_dispatch') {
+    return ContentService.createTextOutput(JSON.stringify(handleUpdateDispatch(postData.dispatchId, postData.data)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  if (action === 'create_dispatch') {
+    return ContentService.createTextOutput(JSON.stringify(handleCreateDispatch(postData.data)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Send Email Notification via GmailApp
+ */
+function handleNotify(postData) {
+  try {
+    var d = postData.data || {};
+    var to = d.client_email || '';
+    
+    // Fallback if client_email is somehow missing
+    if (!to && d.dispatch_data && d.dispatch_data.clientEmail) {
+      to = d.dispatch_data.clientEmail;
+    }
+    
+    if (!to) {
+      return { status: 'error', message: 'No destination email provided' };
+    }
+    
+    var dispatchId = d.dispatch_id || '';
+    var project = d.project_name || '';
+    var clientName = d.client_name || '';
+    var poc = d.ship_to_poc || '';
+    var dateKey = d.date ? d.date.split('T')[0] : '';
+    var trackingId = d.tracking_id || '';
+    var courier = d.courier_company || '';
+    var slipUrl = d.courier_slip_url || '';
+    var address = d.ship_to_address || '';
+
+    var subject = 'Dispatch Update – ' + dispatchId + (project ? (' – ' + project) : '');
+
+    try {
+      // Create HTML template from CustomerEmailTemplate.html
+      var tpl = HtmlService.createTemplateFromFile('CustomerEmailTemplate');
+      tpl.clientName = clientName || poc || 'Customer';
+      tpl.dispatchId = dispatchId;
+      tpl.projectName = project;
+      tpl.dateKey = dateKey;
+      tpl.courier = courier;
+      tpl.trackingId = trackingId;
+      tpl.shipLabelUrl = d.shipping_label_url || '';
+      tpl.docketUrl = slipUrl || '';
+      
+      var htmlBody = tpl.evaluate().getContent();
+
+      var options = {
+        name: 'IDE Autoworks Operations',
+        cc: 'ankit@ideautoworks.com',
+        replyTo: 'operations@ideautoworks.com',
+        htmlBody: htmlBody
+      };
+
+      // Send HTML Email
+      GmailApp.sendEmail(to, subject, 'Please view this email in a modern email client.', options);
+      
+    } catch (tplErr) {
+      Logger.log("HTML Template parsing failed, falling back to plain text email: " + tplErr);
+      
+      // Fallback to plain text if the template file isn't uploaded in Apps Script
+      var greeting = poc ? ('Hi ' + poc + ',') : 'Hi,';
+      var body =
+        greeting + '\n\n' +
+        'Your shipment from IDE Autoworks has been dispatched.\n\n' +
+        'Dispatch Details:\n' +
+        '• Dispatch ID: ' + dispatchId + '\n' +
+        (dateKey ? ('• Date: ' + dateKey + '\n') : '') +
+        (clientName ? ('• Client: ' + clientName + '\n') : '') +
+        (project ? ('• Project: ' + project + '\n') : '') +
+        (address ? ('• Delivery Address: ' + address + '\n') : '') +
+        '\n' +
+        'Tracking Details:\n' +
+        (courier    ? ('• Courier: ' + courier + '\n') : '') +
+        (trackingId ? ('• Tracking ID: ' + trackingId + '\n') : '') +
+        (slipUrl    ? ('• Courier Slip: ' + slipUrl + '\n') : '') +
+        '\n' +
+        'You can use the tracking ID on the courier website / portal to follow the shipment status.\n\n' +
+        'For any support, please reach out to us at operations@ideautoworks.com or call +91 9717498343.\n\n' +
+        'Regards,\n' +
+        'IDE Autoworks Operations Team';
+
+      var options = {
+        name: 'IDE Autoworks Operations',
+        cc: 'ankit@ideautoworks.com',
+        replyTo: 'operations@ideautoworks.com'
+      };
+
+      GmailApp.sendEmail(to, subject, body, options);
+    }
+    
+    return { status: 'success', message: 'Email sent to ' + to };
+  } catch (err) {
+    return { status: 'error', message: String(err) };
+  }
+}
+
+/**
+ * Perform OCR using Google Drive
+ * Requires "Google Drive API" enabled in Services
+ */
+function handleOCR(params) {
+  try {
+    var dataUrl = params.dataUrl;
+    var filename = params.filename || "ocr_upload";
+    
+    // Extract base64
+    var contentType = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+    var base64Data = dataUrl.split(',')[1];
+    var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), contentType, filename);
+    
+    // Upload to Drive with OCR enabled
+    var resource = {
+      title: filename,
+      mimeType: contentType
+    };
+    
+    // Use Drive API v2 or v3
+    var file;
+    try {
+      // Try Drive API v2
+      if (typeof Drive.Files.insert === 'function') {
+        file = Drive.Files.insert(resource, blob, { ocr: true });
+      } else if (typeof Drive.Files.create === 'function') {
+        // Try Drive API v3 (though ocr parameters differ slightly, this is a fallback attempt)
+        file = Drive.Files.create(resource, blob, { ocrLanguage: 'en' });
+      } else {
+         throw new Error("Drive API Advanced Service is not enabled.");
+      }
+    } catch (e) {
+      throw new Error("Drive API Error: " + e.message + ". Please ensure 'Drive API' is added in the 'Services' (+ button) on the left sidebar of the Apps Script Editor.");
+    }
+    
+    // Read the text from the resulting Doc (Drive OCR creates a Doc)
+    var doc = DocumentApp.openById(file.id);
+    var text = doc.getBody().getText();
+    
+    // Cleanup: Delete the temp doc
+    DriveApp.getFileById(file.id).setTrashed(true);
+    
+    // Heuristic extraction (Regex for Tracking IDs, Skus, etc.)
+    var info = extractTrackingInfo(text);
+    
+    return { 
+      status: 'success', 
+      text: text, 
+      detectedTrackingId: info.trackingId,
+      detectedCourier: info.courier
+    };
+  } catch (err) {
+    return { status: 'error', message: String(err) };
+  }
+}
+
+function extractTrackingInfo(text) {
+  var trackingId = null;
+  var courier = null;
+  
+  var tUpper = text.toUpperCase();
+
+  if (tUpper.indexOf("TRACKON") !== -1) courier = "Trackon";
+  else if (tUpper.indexOf("BLUEDART") !== -1 || tUpper.indexOf("BLUE DART") !== -1) courier = "BlueDart";
+  else if (tUpper.indexOf("DELHIVERY") !== -1) courier = "Delhivery";
+  else if (tUpper.indexOf("DTDC") !== -1) courier = "DTDC";
+  else if (tUpper.indexOf("AMAZON") !== -1) courier = "Amazon";
+
+  // Common tracking patterns
+  var patterns = [
+    /AWB\s*[:\-#]?\s*([A-Z0-9]{8,15})/i,
+    /([0-9]{12})/, // Trackon uses 12 digits e.g., 100435251380
+    /([0-9]{11})/, // BlueDart uses 11 digits
+    /TRK\s*[:\-#]?\s*([0-9]{8,15})/i
+  ];
+  
+  for (var i = 0; i < patterns.length; i++) {
+    var match = text.match(patterns[i]);
+    if (match) {
+      trackingId = match[1] || match[0];
+      break;
+    }
+  }
+  
+  return { trackingId: trackingId, courier: courier };
+}
+
+/**
+ * Handle Creating Dispatch in Google Sheets
+ */
+/**
+ * 3. Sync Legacy Sheet Data TO Supabase
+ * Can be triggered from the "Master Dispatch" menu in the Google Sheet
+ */
+function api_syncSheetToSupabase_v3() {
+  try {
+    var MASTER_SHEET_ID = '1WVh5Nc_wtBfrFQrJCno63mQXd47oJZjgU27jTApwjJY';
+    var TAB_NAME = 'Masters_Normalized_Verify';
+    var ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    var sh = ss.getSheetByName(TAB_NAME);
+    if (!sh) {
+      logMsg('Error: "' + TAB_NAME + '" sheet not found.');
+      return;
+    }
+
+    var data = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues();
+    if (data.length < 2) {
+      logMsg('Error: Sheet is empty.');
+      return;
+    }
+
+    var headers = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
+    var rows = data.slice(1);
+    
+    // Exact mapping based on your sheet structure
+    function findIdx(keywords) {
+      for (var k = 0; k < keywords.length; k++) {
+        var key = keywords[k].toUpperCase();
+        var idx = headers.indexOf(key);
+        if (idx > -1) return idx;
+      }
+      return -1;
+    }
+
+    var idxDate    = findIdx(['DATE', 'TIMESTAMP']);
+    var idxClient  = findIdx(['CLIENT NAME', 'CLIENT']);
+    var idxAddress = findIdx(['ADDRESS', 'LOCATION', 'DELIVERY ADDRESS']);
+    var idxPOC     = findIdx(['POC', 'CONTACT PERSON', 'POC NAME']);
+    var idxPhone   = findIdx(['PHONE', 'MOBILE', 'PHONE NO']);
+    var idxEmail   = findIdx(['CLIENT EMAIL', 'EMAIL']);
+    var idxProject = findIdx(['PROJECT', 'WORKORDER']);
+    var idxProd    = findIdx(['PRODUCT', 'DESCRIPTION', 'ITEM TECHNICAL DESCRIPTION']);
+    var idxQty     = findIdx(['QTY', 'QUANTITY', 'UNITS']);
+    var idxAmt     = findIdx(['AMOUNT', 'PRICE', 'RATE']);
+    var idxEway    = findIdx(['E-WAY', 'EWAY BILL']);
+    var idxDID     = findIdx(['DISPATCH ID', 'ID', 'DID']);
+    var idxTrack   = findIdx(['TRACKING ID', 'AWB']);
+    var idxCourier = findIdx(['COURIER COMPANY', 'COURIER']);
+    var idxSlip    = findIdx(['COURIER SLIP LINK', 'SLIP LINK']);
+
+    if (idxDID === -1) {
+      logMsg('Error: Could not find "Dispatch ID" column. Found: ' + headers.join('|'));
+      return;
+    }
+
+    var dispatchMap = {};
+    var currentDID = null;
+    var itemsCount = 0;
+
+    rows.forEach(function(row) {
+      var did = String(row[idxDID] || '').trim();
+      if (did && did !== '-') currentDID = did;
+      if (!currentDID) return;
+
+      if (!dispatchMap[currentDID]) {
+        dispatchMap[currentDID] = {
+          dispatch_id: currentDID,
+          date: idxDate > -1 ? formatDateToISO(row[idxDate]) : null,
+          client_name: idxClient > -1 ? String(row[idxClient] || '').trim() : 'N/A',
+          project_name: idxProject > -1 ? String(row[idxProject] || '').trim() : 'N/A',
+          ship_to_address: idxAddress > -1 ? String(row[idxAddress] || '').trim() : '',
+          ship_to_poc: idxPOC > -1 ? String(row[idxPOC] || '').trim() : '',
+          ship_to_phone: idxPhone > -1 ? String(row[idxPhone] || '').trim() : '',
+          ship_to_email: idxEmail > -1 ? String(row[idxEmail] || '').trim() : '',
+          tracking_id: idxTrack > -1 ? String(row[idxTrack] || '').trim() : '',
+          courier_company: idxCourier > -1 ? String(row[idxCourier] || '').trim() : '',
+          eway_bill_no: idxEway > -1 ? String(row[idxEway] || '').trim() : 'NO',
+          items: []
+        };
+      }
+
+      var prodDesc = idxProd > -1 ? String(row[idxProd] || '').trim() : '';
+      if (prodDesc && prodDesc !== '-' && prodDesc !== '') {
+        // Grouping logic within a dispatch to prevent duplicates from multiple sheet rows
+        var existingItem = dispatchMap[currentDID].items.find(function(it) {
+          return it.desc.toUpperCase() === prodDesc.toUpperCase();
+        });
+
+        var q = idxQty > -1 ? Number(row[idxQty]) || 0 : 0;
+        var a = idxAmt > -1 ? Number(row[idxAmt]) || 0 : 0;
+
+        if (existingItem) {
+          existingItem.qty += q;
+          existingItem.amount += a;
+        } else {
+          dispatchMap[currentDID].items.push({
+            desc: prodDesc,
+            qty: q,
+            amount: a
+          });
+        }
+        itemsCount++;
+      }
+    });
+
+    var payloads = Object.values(dispatchMap);
+    if (payloads.length === 0) {
+      logMsg('Info: Found no dispatches to sync.');
+      return;
+    }
+
+    // --- STEP 1: CLEAN RELOAD (Deduplication) ---
+    var idsToClean = payloads.map(function(p) { return p.dispatch_id; });
+    idsToClean.forEach(function(id) {
+       supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatches?dispatch_id=eq.' + encodeURIComponent(id), 'DELETE');
+    });
+
+    // --- STEP 2: PREPARE DISPATCHES ---
+    var dispatches = payloads.map(function(d) {
+      var totals = d.items.reduce(function(acc, item) {
+        acc.qty += item.qty;
+        acc.amount += item.amount;
+        return acc;
+      }, { qty: 0, amount: 0 });
+
+      return {
+        dispatch_id: d.dispatch_id,
+        date: d.date,
+        client_name: d.client_name,
+        project_name: d.project_name,
+        ship_to_address: d.ship_to_address,
+        ship_to_poc: d.ship_to_poc,
+        ship_to_phone: d.ship_to_phone,
+        ship_to_email: d.ship_to_email,
+        tracking_id: d.tracking_id,
+        courier_company: d.courier_company,
+        eway_bill_no: d.eway_bill_no,
+        dispatch_data: { items: d.items, totals: totals }
+      };
+    });
+
+    // --- STEP 3: INSERT DISPATCHES ---
+    // We use return=representation to get the internal UUID IDs back
+    var resp = supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatches', 'POST', dispatches, { 
+      'Prefer': 'resolution=merge-duplicates,return=representation' 
+    });
+    
+    if (resp.error) {
+      logMsg('Error inserting dispatches: ' + JSON.stringify(resp.data));
+      return;
+    }
+
+    // --- STEP 3: INSERT RELATIONAL ITEMS ---
+    // Map the internal UUIDs to our sheet-side Dispatch IDs
+    var uuidMap = {};
+    if (resp.data && Array.isArray(resp.data)) {
+      resp.data.forEach(function(r) {
+        uuidMap[r.dispatch_id] = r.id; 
+      });
+    }
+
+    var itemsPayload = [];
+    payloads.forEach(function(p) {
+      var parentUuid = uuidMap[p.dispatch_id];
+      if (!parentUuid) return;
+      
+      p.items.forEach(function(item) {
+        itemsPayload.push({
+          dispatch_id: parentUuid,
+          description: item.desc,
+          quantity: item.qty,
+          amount: item.amount
+        });
+      });
+    });
+
+    if (itemsPayload.length > 0) {
+      var itemResp = supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatch_items', 'POST', itemsPayload);
+      if (itemResp.error) {
+        logMsg('Warning: Items sync had issues: ' + JSON.stringify(itemResp.data));
+      }
+    }
+
+    logMsg('Sync Successful! Verified ' + payloads.length + ' dispatches and ' + itemsCount + ' manifest items from "' + TAB_NAME + '".');
+
+  } catch (err) {
+    logMsg('Critical Sync Error: ' + String(err));
+  }
+}
+
+function logMsg(msg) {
+  Logger.log(msg);
+  try {
+    SpreadsheetApp.getUi().alert(msg);
+  } catch(e) {}
+}
+
+/**
+ * 4. Handle Creating Dispatch in Google Sheets
+ */
+function handleCreateDispatch(data) {
+  try {
+    var MASTER_SHEET_ID = '1WVh5Nc_wtBfrFQrJCno63mQXd47oJZjgU27jTApwjJY';
+    var TAB_NAME = 'Masters_Normalized_Verify';
+    var ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    var sh = ss.getSheetByName(TAB_NAME);
+    if (!sh) return { status: 'error', message: TAB_NAME + ' sheet not found' };
+    
+    var lastCol = sh.getLastColumn();
+    var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var colMap = {};
+    header.forEach(function(h, i) { colMap[String(h).trim().toUpperCase()] = i; });
+    
+    var items = [];
+    // Handle both new data format and old
+    if (data.dispatch_data && data.dispatch_data.items) {
+      items = data.dispatch_data.items;
+    } else if (data.items) {
+      items = data.items;
+    }
+    
+    var rows = [];
+    items.forEach(function(item) {
+      var row = new Array(lastCol).fill('');
+      
+      function set(key, val) {
+        if (colMap[key] !== undefined) row[colMap[key]] = val;
+      }
+      
+      set('DATE', data.date);
+      set('CLIENT NAME', data.client_name);
+      set('PROJECT', data.project_name);
+      set('ADDRESS', data.ship_to_address);
+      set('POC', data.ship_to_poc);
+      set('PHONE', data.ship_to_phone);
+      set('CLIENT EMAIL', data.ship_to_email);
+      set('DISPATCH ID', data.dispatch_id);
+      set('PRODUCT', item.desc || item.description);
+      set('QTY', item.qty || item.quantity);
+      set('AMOUNT', item.amount);
+      
+      rows.push(row);
+    });
+    
+    if (rows.length > 0) {
+      sh.getRange(sh.getLastRow() + 1, 1, rows.length, lastCol).setValues(rows);
+    }
+    
+    return { status: 'success', rowsAdded: rows.length };
+  } catch (err) {
+    return { status: 'error', message: String(err) };
+  }
+}
+
+/**
+ * Update tracking in Google Sheets for an existing dispatch
+ */
+function handleUpdateDispatch(dispatchId, data) {
+  try {
+    var TAB_NAME = 'Masters_Normalized_Verify';
+    var ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
+    var sh = ss.getSheetByName(TAB_NAME);
+    if (!sh) return { status: 'error', message: TAB_NAME + ' sheet not found' };
+    
+    var lastRow = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var colMap = {};
+    header.forEach(function(h, i) { colMap[String(h).trim().toUpperCase()] = i; });
+    
+    var dataVals = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    var dIdx = colMap['DISPATCH ID'];
+    
+    for (var r = 0; r < dataVals.length; r++) {
+      if (String(dataVals[r][dIdx]).trim() === String(dispatchId).trim()) {
+        var rowNum = r + 2;
+        
+        function update(key, val) {
+          if (colMap[key] !== undefined && val !== undefined) {
+             sh.getRange(rowNum, colMap[key] + 1).setValue(val);
+          }
+        }
+        
+        if (data.tracking_id) update('TRACKING ID', data.tracking_id);
+        if (data.courier_company) update('COURIER COMPANY', data.courier_company);
+        if (data.courier_slip_url) update('COURIER SLIP LINK', data.courier_slip_url);
+        if (data.email_sent_at) update('EMAIL SENT AT', data.email_sent_at);
+        
+        return { status: 'success', msg: 'Row updated' };
+      }
+    }
+    return { status: 'error', message: 'Dispatch ID not found in sheet' };
+  } catch (err) {
+    return { status: 'error', message: String(err) };
+  }
+}
+
+function formatDateToISO(d) {
+  if (!d) return null;
+  var date = new Date(d);
+  if (isNaN(date.getTime())) return null;
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function supabaseRestCall(url, key, path, method, payload, extraHeaders) {
+  var options = {
+    method: method,
+    headers: {
+      'apikey': key,
+      'Authorization': 'Bearer ' + key,
+      'Content-Type': 'application/json'
+    },
+    muteHttpExceptions: true
+  };
+  if (extraHeaders) {
+    for (var k in extraHeaders) {
+      options.headers[k] = extraHeaders[k];
+    }
+  }
+  if (payload) options.payload = JSON.stringify(payload);
+
+  var res = UrlFetchApp.fetch(url + '/rest/v1/' + path, options);
+  var code = res.getResponseCode();
+  var text = res.getContentText();
+  return { error: code >= 300, data: text ? JSON.parse(text) : null };
+}
+
+/**
+ * Scheduled Function: Check for Pending Dispatches > 2 Days and Alert Team
+ * Set this up as a Time-driven trigger (e.g., Daily at 9am)
+ */
+function checkAndAlertPendingDispatches() {
+  var SUPABASE_URL = 'https://trgvsjirzofgkheaqzne.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_ZjOD9CABLbLXCmiIWVIqxg_3JEHzQv8';
+  
+  // Calculate date 48 hours ago
+  var twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  var cutoffIso = twoDaysAgo.toISOString();
+  
+  // Query Supabase: All dispatches where email_sent_at is null AND date is less than (older than) 2 days ago
+  // We use the REST API: /rest/v1/dispatches?email_sent_at=is.null&date=lt.{cutoffIso}&select=*
+  var path = 'dispatches?email_sent_at=is.null&date=lt.' + encodeURIComponent(cutoffIso) + '&select=*&is_archived=eq.false';
+  
+  var result = supabaseRestCall(SUPABASE_URL, SUPABASE_ANON_KEY, path, 'GET', null);
+  
+  if (result.error) {
+    Logger.log("Failed to fetch pending dispatches: " + JSON.stringify(result.data));
+    return;
+  }
+  
+  var pendingDispatches = result.data || [];
+  
+  if (pendingDispatches.length === 0) {
+    Logger.log("No pending dispatches found older than 48 hours. No email sent.");
+    return;
+  }
+  
+  // Clean up data for the template
+  var now = new Date();
+  var emailData = pendingDispatches.map(function(d) {
+    var dDate = new Date(d.date);
+    var diffTime = Math.abs(now - dDate);
+    var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    
+    return {
+      id: d.id,
+      dispatch_id: d.dispatch_id,
+      client_name: d.client_name,
+      project_name: d.project_name,
+      date: d.date,
+      days_pending: diffDays,
+      tracking_id: d.tracking_id,
+      courier_company: d.courier_company,
+      courier_slip_url: d.courier_slip_url
+    };
+  });
+  
+  // Send email using HTML template
+  try {
+    var tpl = HtmlService.createTemplateFromFile('TeamAlertEmailTemplate');
+    tpl.dispatches = emailData;
+    var htmlBody = tpl.evaluate().getContent();
+    
+    var to = 'operations@ideautoworks.com';
+    var subject = 'URGENT: ' + emailData.length + ' Pending Customer Dispatch Emails';
+    var options = {
+      name: 'Dispatch Portal Automations',
+      cc: 'ankit@ideautoworks.com,himanshu@ideautoworks.com',
+      htmlBody: htmlBody
+    };
+    
+    GmailApp.sendEmail(to, subject, 'Please view this email in an HTML compatible client.', options);
+    Logger.log("Successfully sent digest alert for " + emailData.length + " pending items.");
+    
+  } catch (e) {
+    Logger.log("Failed to send alert email: " + e.message);
+  }
+}

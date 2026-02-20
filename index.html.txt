@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <base target="_top" />
+  <meta charset="utf-8" />
+  <title>IDE Master Dispatch</title>
+  <style>
+    /* =========================================
+         GLOBAL + TYPOGRAPHY
+         =======================================*/
+    * {
+      box-sizing: border-box;
+    }
+
+    @font-face {
+      font-family: 'Mark Pro';
+      src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_u5un9a.woff2') format('woff2'),
+        url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_cw9z0d.woff') format('woff');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'Mark Pro';
+      src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116949/MarkPro-Medium_ovo2ic.woff2') format('woff2'),
+        url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116948/MarkPro-Medium_coqjal.woff') format('woff');
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'Mark Pro';
+      src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_e07jes.woff2') format('woff2'),
+        url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_yhvupw.woff') format('woff');
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Mark Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        Roboto, Helvetica, Arial, sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    .app-shell {
+      max-width: 1040px;
+      margin: 16px auto 24px;
+      padding: 0 12px 24px;
+    }
+
+    /* =========================================
+         HEADER + NAV
+         =======================================*/
+    .top-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+
+    .top-header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .top-header-title h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .top-header-title span {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .top-nav-buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .nav-btn {
+      border-radius: 999px;
+      border: 1px solid #d4de47;
+      padding: 7px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #d4de47;
+      color: #111827;
+      text-decoration: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 130px;
+      text-align: center;
+    }
+
+    .nav-btn:hover {
+      background: #c3cf32;
+    }
+
+    .top-header-right img {
+      height: 42px;
+      width: auto;
+      display: block;
+    }
+
+    /* =========================================
+         CARDS + LAYOUT
+         =======================================*/
+    .cards-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      padding: 0 14px 14px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      overflow: visible;
+      /* Changed from hidden to visible for dropdowns */
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      margin: 0 -14px 10px;
+      background: #d4de47;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #111827;
+    }
+
+    .card-pill {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #111827;
+      font-weight: 600;
+      border: 1px solid #cbd5f5;
+    }
+
+    .card-body {
+      font-size: 11px;
+    }
+
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+    }
+
+    .form-grid-1 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .field label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #4b5563;
+    }
+
+    .field small {
+      font-size: 9px;
+      color: #9ca3af;
+    }
+
+    input[type='text'],
+    input[type='date'],
+    input[type='number'],
+    input[type='email'],
+    select,
+    textarea {
+      width: 100%;
+      font-size: 11px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-family: inherit;
+      outline: none;
+      background: #f9fafb;
+    }
+
+    input[type='file'] {
+      font-size: 11px;
+    }
+
+    textarea {
+      min-height: 60px;
+      resize: vertical;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      border-color: #d4de47;
+      box-shadow: 0 0 0 1px rgba(212, 222, 71, 0.4);
+      background: #ffffff;
+    }
+
+    /* Buttons */
+    .btn-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: #d4de47;
+      color: #111827;
+    }
+
+    .btn-ghost {
+      background: #ffffff;
+      color: #111827;
+      border: 1px solid #d1d5db;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px dashed #9ca3af;
+      color: #374151;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .btn-small {
+      padding: 4px 10px;
+      font-size: 10px;
+    }
+
+    /* Autocomplete box */
+    .client-autocomplete {
+      position: relative;
+    }
+
+    .client-suggestions,
+    .suggestions-box {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 2px;
+      background: #ffffff;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+      max-height: 180px;
+      overflow-y: auto;
+      z-index: 20;
+    }
+
+    .client-suggestion-item,
+    .suggestion-item {
+      padding: 8px 10px;
+      font-size: 11px !important;
+      cursor: pointer;
+      display: block;
+      color: #000000 !important;
+      /* Force Black */
+      background: #ffffff !important;
+      /* Force White */
+      border-bottom: 1px solid #f3f4f6;
+      line-height: normal;
+      text-align: left;
+    }
+
+    .client-suggestion-item:last-child,
+    .suggestion-item:last-child {
+      border-bottom: none;
+    }
+
+    .client-suggestion-item:hover,
+    .suggestion-item:hover {
+      background: #f3f4f6 !important;
+      color: #000000 !important;
+    }
+
+    .client-suggestion-name,
+    .suggestion-name {
+      font-weight: 500;
+      color: #000000 !important;
+      /* Double force black */
+    }
+
+    .client-suggestion-meta {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .client-suggestion-add,
+    .suggestion-add {
+      border-top: 1px solid #e5e7eb;
+      font-weight: 600;
+      color: #15803d;
+      /* Green for add action */
+    }
+
+    .autocomplete-box {
+      position: relative;
+    }
+
+    /* Ship-To toggle */
+    .shipto-toggle {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 10px;
+    }
+
+    .shipto-toggle label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    th,
+    td {
+      border: 1px solid #e5e7eb;
+      padding: 4px 6px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #d4de47;
+      text-align: left;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    td input {
+      width: 100%;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 2px 0;
+      font-size: 11px;
+    }
+
+    td input:focus {
+      outline: none;
+      box-shadow: none;
+    }
+
+    .right {
+      text-align: right;
+    }
+
+    .items-footer-row {
+      margin-top: 6px;
+      display: flex;
+      justify-content: flex-end;
+      font-size: 12px;
+      color: #374151;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: #f3f4f6;
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Status banners */
+    .status-banner {
+      margin-top: 12px;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 11px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .status-success {
+      background: #ecfdf3;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+
+    .status-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 768px) {
+      .form-grid-2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .top-header {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+    }
+
+    .loader-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #e5e7eb;
+      border-top: 2px solid #d4de47;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <!-- =========================================
+           HEADER + NAV
+           =======================================-->
+    <div class="top-header">
+      <div class="top-header-left">
+        <div class="top-header-title">
+          <h1>IDE Master Dispatch</h1>
+          <span>Dispatch + Shipping Label + Delivery Challan</span>
+        </div>
+        <div class="top-nav-buttons">
+          <a href="https://script.google.com/macros/s/AKfycbx3YxInjtvVgpCOdXm9Qin_PgH_RX06wPPck4UaEJCIHfcfENPU12EjHBU-vPSjCss3/exec?view=tracking"
+            class="nav-btn" target="_blank" rel="noopener noreferrer">
+            Tracking Sheet
+          </a>
+          <a href="https://script.google.com/macros/s/AKfycbx3YxInjtvVgpCOdXm9Qin_PgH_RX06wPPck4UaEJCIHfcfENPU12EjHBU-vPSjCss3/exec?view=summary"
+            class="nav-btn" target="_blank" rel="noopener noreferrer">
+            Summary Sheet
+          </a>
+        </div>
+      </div>
+      <div class="top-header-right">
+        <img src="https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png"
+          alt="IDE Autoworks" />
+      </div>
+    </div>
+
+    <div class="cards-grid">
+      <!-- =========================================
+             CARD 1: CLIENT + PROJECT + SHIP-TO
+             =======================================-->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Client, Project &amp; Ship-To</div>
+          <div class="card-pill">Step 1</div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid-2">
+            <!-- Date -->
+            <div class="field">
+              <label for="field-date">Date</label>
+              <input id="field-date" type="date" />
+            </div>
+
+            <!-- Client (autocomplete) -->
+            <div class="field client-autocomplete">
+              <label for="field-client-name">Select Client</label>
+              <input id="field-client-name" type="text" autocomplete="off" placeholder="Start typing client name…"
+                oninput="onClientInput(event)" onfocus="onClientInput(event)" />
+              <div id="client-suggestions" class="client-suggestions hidden"></div>
+              <small>Select an existing client or type a new name and add it.</small>
+            </div>
+
+            <!-- Project -->
+            <div class="field">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label for="field-project">Project Name</label>
+                <div id="project-loader" class="loader-spinner hidden"></div>
+              </div>
+              <div class="autocomplete-box">
+                <input id="field-project" type="text" placeholder="Select or type project..." autocomplete="off"
+                  oninput="onProjectInput(event)" onfocus="onProjectInput(event)" />
+                <div id="project-suggestions" class="suggestions-box hidden"></div>
+              </div>
+              <small>Projects are pulled from existing dispatches in the Masters sheet.</small>
+            </div>
+
+            <!-- Ship-To Mode (Client / Installer) -->
+            <div class="field">
+              <label>Ship-To Mode</label>
+              <div class="shipto-toggle">
+                <label>
+                  <input type="radio" name="shipto" value="client" checked onchange="onShipToModeChange()" />
+                  Client
+                </label>
+                <label>
+                  <input type="radio" name="shipto" value="installer" onchange="onShipToModeChange()" />
+                  Installer
+                </label>
+              </div>
+              <small>Choose where the shipment physically goes. Client details are always recorded.</small>
+            </div>
+
+            <!-- Installer block (only when Ship-To = Installer) -->
+            <div class="field hidden" id="installer-block">
+              <label for="field-installer">Select Installer (Ship-to)</label>
+              <select id="field-installer" onchange="onInstallerChange()">
+                <option value="">Select installer…</option>
+              </select>
+              <small>Choose installer to ship to. If blank, dispatch goes to client address.</small>
+              <div class="btn-row" style="margin-top:4px;">
+                <button type="button" class="btn btn-outline btn-small" onclick="promptAddInstaller()">
+                  + Add Installer
+                </button>
+              </div>
+            </div>
+
+            <!-- Ship-To POC -->
+            <div class="field">
+              <label for="field-poc">POC Name (Ship-to)</label>
+              <input id="field-poc" type="text" />
+            </div>
+
+            <!-- Ship-To Phone -->
+            <div class="field">
+              <label for="field-phone">Phone (Ship-to)</label>
+              <input id="field-phone" type="text" />
+            </div>
+
+            <!-- Ship-To Email -->
+            <div class="field">
+              <label for="field-email">Email (Ship-to)</label>
+              <input id="field-email" type="email" />
+            </div>
+
+            <!-- Ship-To Address -->
+            <div class="field">
+              <label for="field-address">Address (Ship-to)</label>
+              <textarea id="field-address"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================================
+             CARD 2: INVOICE UPLOAD & OCR
+             =======================================-->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Invoice Upload &amp; OCR</div>
+          <div class="card-pill">Step 2</div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid-1">
+            <div class="field">
+              <label for="field-invoice-file">Upload Invoice (PDF / Image)</label>
+              <input id="field-invoice-file" type="file" accept=".pdf,image/*" />
+              <small>
+                Use Doc AI + Vision OCR to auto-fill item descriptions, qty &amp; amount.
+              </small>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-ghost btn-small" onclick="runOcr()" id="btn-ocr">
+              Run OCR &amp; Fill Items
+            </button>
+            <span id="ocr-status" style="font-size:10px;color:#6b7280;"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================================
+             CARD 3: ITEMS & AMOUNTS
+             =======================================-->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Items &amp; Amounts</div>
+          <div class="card-pill">Step 3</div>
+        </div>
+        <div class="card-body">
+          <div class="field" style="margin-bottom:6px;">
+            <label>Line Items</label>
+            <table id="items-table">
+              <thead>
+                <tr>
+                  <th style="width:4%;">#</th>
+                  <th>Description</th>
+                  <th style="width:12%;">Qty</th>
+                  <th style="width:16%;">Amount (₹)</th>
+                  <th style="width:10%;"></th>
+                </tr>
+              </thead>
+              <tbody id="items-tbody"></tbody>
+            </table>
+            <div class="btn-row" style="margin-top:6px;">
+              <button type="button" class="btn btn-outline btn-small" onclick="addItemRow()">
+                + Add Item
+              </button>
+            </div>
+          </div>
+
+          <div class="items-footer-row">
+            <div class="chip" id="chip-total-qty">Total Qty: 0</div>
+            <div class="chip" id="chip-subtotal">Subtotal: ₹0.00</div>
+            <div class="chip" id="chip-gst">GST 18%: ₹0.00</div>
+            <div class="chip" id="chip-grand">Total (incl. GST): ₹0.00</div>
+          </div>
+
+          <!-- 🔴 NEW: E-way bill warning under totals -->
+          <div id="eway-warning" style="margin-top:4px;font-size:11px;color:#b91c1c;display:none;">
+            E-Way bill is required for invoice value above ₹50,000/-
+          </div>
+
+          <div class="btn-row">
+            <button type="button" class="btn btn-primary" onclick="submitDispatch()" id="btn-submit">
+              Generate Combined PDF
+            </button>
+          </div>
+
+          <div id="submit-status" class="status-banner status-success hidden">
+            <div>
+              <strong id="submit-status-title">Dispatch generated.</strong>
+              <div id="submit-status-text" style="margin-top:2px;"></div>
+            </div>
+            <div class="btn-row" style="margin-top:0;">
+              <a id="btn-download-pdf" class="btn btn-ghost btn-small" href="#" target="_blank">
+                Download Combined PDF
+              </a>
+              <button type="button" class="btn btn-ghost btn-small" onclick="resetForm()">
+                New Entry
+              </button>
+            </div>
+          </div>
+
+          <div id="error-status" class="status-banner status-error hidden">
+            <div id="error-status-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+         SCRIPT SECTION — FRONT-END LOGIC
+         =======================================-->
+  <script>
+    /* -----------------------------------------
+       GLOBAL STATE
+       --------------------------------------*/
+    var CLIENTS = [];
+    var INSTALLERS = [];
+    var PROJECTS = []; // Global store for current client's projects
+    var PRODUCTS = [];
+    var invoiceFile = null;
+
+    /* -----------------------------------------
+       INIT
+       --------------------------------------*/
+    function init() {
+      // Set today's date
+      var d = new Date();
+      var yyyy = d.getFullYear();
+      var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+      var dd = ('0' + d.getDate()).slice(-2);
+      document.getElementById('field-date').value = yyyy + '-' + mm + '-' + dd;
+
+      // Reset ship-to mode to "client"
+      var radios = document.querySelectorAll('input[name="shipto"]');
+      if (radios && radios.length) {
+        radios[0].checked = true; // client
+      }
+      syncShipToModeUI();
+
+      // File input
+      var f = document.getElementById('field-invoice-file');
+      f.addEventListener('change', function (e) {
+        invoiceFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+        document.getElementById('ocr-status').textContent = invoiceFile
+          ? 'File selected: ' + invoiceFile.name
+          : '';
+      });
+
+      // Reset items table
+      var tbody = document.getElementById('items-tbody');
+      tbody.innerHTML = '';
+      addItemRow();
+
+      // Load clients + installers from server
+      loadClients();
+      loadInstallers();
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+
+    /* -----------------------------------------
+       SHIP-TO MODE HANDLING
+       --------------------------------------*/
+    function getShipToMode() {
+      var radios = document.querySelectorAll('input[name="shipto"]');
+      for (var i = 0; i < radios.length; i++) {
+        if (radios[i].checked) return radios[i].value;
+      }
+      return 'client';
+    }
+
+    function syncShipToModeUI() {
+      var mode = getShipToMode();
+      var installerBlock = document.getElementById('installer-block');
+      if (!installerBlock) return;
+
+      if (mode === 'installer') {
+        installerBlock.classList.remove('hidden');
+      } else {
+        installerBlock.classList.add('hidden');
+        // When shipping to client, re-apply client details as ship-to (if available)
+        var cname = document.getElementById('field-client-name').value || '';
+        if (cname) {
+          var c = findClientByName(cname);
+          if (c) {
+            fillShipToFromClient(c);
+          }
+        }
+      }
+    }
+
+    function onShipToModeChange() {
+      syncShipToModeUI();
+    }
+
+    /* -----------------------------------------
+       LOAD CLIENTS
+       --------------------------------------*/
+    function loadClients() {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+      google.script.run
+        .withSuccessHandler(function (list) {
+          CLIENTS = list || [];
+          // Auto-refresh dropdown if user is currently focused on the field
+          var input = document.getElementById('field-client-name');
+          if (input && document.activeElement === input) {
+            renderClientSuggestions(input.value.trim());
+          }
+        })
+        .withFailureHandler(function (err) {
+          console.error('api_getClients error: ', err);
+        })
+        .api_getClients();
+    }
+
+    /* -----------------------------------------
+       LOAD INSTALLERS
+       --------------------------------------*/
+    function loadInstallers() {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) return;
+          INSTALLERS = res.installers || [];
+          populateInstallerSelect();
+        })
+        .withFailureHandler(function (err) {
+          console.error('api_getInstallers error: ', err);
+        })
+        .api_getInstallers();
+    }
+
+    function populateInstallerSelect() {
+      var sel = document.getElementById('field-installer');
+      if (!sel) return;
+
+      // Reset
+      sel.innerHTML = '';
+      var optDefault = document.createElement('option');
+      optDefault.value = '';
+      optDefault.textContent = 'Select installer…';
+      sel.appendChild(optDefault);
+
+      INSTALLERS.forEach(function (inst) {
+        var opt = document.createElement('option');
+        opt.value = inst.name;
+        opt.textContent = inst.name + (inst.city ? ' — ' + inst.city : '');
+        sel.appendChild(opt);
+      });
+    }
+
+    function onInstallerChange() {
+      var name = document.getElementById('field-installer').value || '';
+      if (!name) {
+        document.getElementById('field-poc').value = '';
+        document.getElementById('field-phone').value = '';
+        document.getElementById('field-email').value = '';
+        document.getElementById('field-address').value = '';
+        return;
+      }
+
+      var inst = null;
+      for (var i = 0; i < INSTALLERS.length; i++) {
+        if ((INSTALLERS[i].name || '').toLowerCase() === name.toLowerCase()) {
+          inst = INSTALLERS[i];
+          break;
+        }
+      }
+      if (!inst) return;
+
+      // Fill ship-to fields from installer
+      document.getElementById('field-poc').value = inst.poc || '';
+      document.getElementById('field-phone').value = inst.phone || '';
+      document.getElementById('field-email').value = inst.email || '';
+      document.getElementById('field-address').value = inst.address || '';
+    }
+
+    /* -----------------------------------------
+       ADD INSTALLER (UI)
+       --------------------------------------*/
+    function promptAddInstaller() {
+      var clientName = document.getElementById('field-client-name').value || '';
+
+      var name = window.prompt('Installer name?');
+      if (!name) return;
+      var nameTrim = name.trim();
+      var nameLower = nameTrim.toLowerCase();
+
+      // FRONT-END guard: if installer already exists, don't add duplicate
+      var existing = null;
+      for (var i = 0; i < INSTALLERS.length; i++) {
+        if ((INSTALLERS[i].name || '').trim().toLowerCase() === nameLower) {
+          existing = INSTALLERS[i];
+          break;
+        }
+      }
+
+      if (existing) {
+        alert('This installer already exists. Selecting the existing entry.');
+        var sel = document.getElementById('field-installer');
+        if (sel) {
+          for (var j = 0; j < sel.options.length; j++) {
+            if ((sel.options[j].value || '').trim().toLowerCase() === nameLower) {
+              sel.selectedIndex = j;
+              onInstallerChange();
+              break;
+            }
+          }
+        }
+        return;
+      }
+
+      var city = window.prompt('City (optional)?') || '';
+      var poc = window.prompt('POC name (optional)?') || '';
+      var phone = window.prompt('Phone (optional)?') || '';
+      var email = window.prompt('Email (optional)?') || '';
+
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        alert('google.script.run not available in preview.');
+        return;
+      }
+
+      var payload = {
+        name: nameTrim,
+        city: city,
+        address: '',
+        poc: poc,
+        phone: phone,
+        email: email,
+        linkedClient: clientName
+      };
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || res.ok === false) {
+            alert('Could not save installer: ' + (res && res.msg ? res.msg : 'Unknown error'));
+            return;
+          }
+          // Reload installers and pre-select the new one
+          loadInstallers();
+          setTimeout(function () {
+            var sel = document.getElementById('field-installer');
+            if (!sel) return;
+            for (var i = 0; i < sel.options.length; i++) {
+              if ((sel.options[i].value || '').trim().toLowerCase() === nameLower) {
+                sel.selectedIndex = i;
+                onInstallerChange();
+                break;
+              }
+            }
+          }, 400);
+        })
+        .withFailureHandler(function (err) {
+          alert('Add installer failed: ' + (err && err.message ? err.message : err));
+        })
+        .api_addInstaller(payload);
+    }
+
+
+    /* -----------------------------------------
+       CLIENT AUTOCOMPLETE
+       --------------------------------------*/
+    function findClientByName(name) {
+      var target = (name || '').toLowerCase();
+      for (var i = 0; i < CLIENTS.length; i++) {
+        if ((CLIENTS[i].name || '').toLowerCase() === target) {
+          return CLIENTS[i];
+        }
+      }
+      return null;
+    }
+
+    function onClientInput(e) {
+      var q = (e.target.value || '').trim().toLowerCase();
+      renderClientSuggestions(q);
+      // Clear project options when client input changes
+      updateProjectGlobal([]);
+      var pIn = document.getElementById('field-project');
+      if (pIn) pIn.value = '';
+      updateProductDatalist([]); // Clear products to avoid mixing
+    }
+
+    /* -----------------------------------------
+       GEO DATA (BRUTE FORCE LOOKUP)
+       --------------------------------------*/
+    var INDIA_GEO = {
+      states: [
+        "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli", "Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
+      ],
+      cities: {
+        "Mumbai": "Maharashtra", "Delhi": "Delhi", "Bangalore": "Karnataka", "Bengaluru": "Karnataka", "Kolkata": "West Bengal", "Chennai": "Tamil Nadu", "Hyderabad": "Telangana", "Pune": "Maharashtra", "Ahmedabad": "Gujarat", "Surat": "Gujarat", "Jaipur": "Rajasthan", "Lucknow": "Uttar Pradesh", "Kanpur": "Uttar Pradesh", "Nagpur": "Maharashtra", "Indore": "Madhya Pradesh", "Thane": "Maharashtra", "Bhopal": "Madhya Pradesh", "Visakhapatnam": "Andhra Pradesh", "Pimpri-Chinchwad": "Maharashtra", "Patna": "Bihar", "Vadodara": "Gujarat", "Ghaziabad": "Uttar Pradesh", "Ludhiana": "Punjab", "Agra": "Uttar Pradesh", "Nashik": "Maharashtra", "Faridabad": "Haryana", "Meerut": "Uttar Pradesh", "Rajkot": "Gujarat", "Kalyan-Dombivli": "Maharashtra", "Vasai-Virar": "Maharashtra", "Varanasi": "Uttar Pradesh", "Srinagar": "Jammu and Kashmir", "Aurangabad": "Maharashtra", "Dhanbad": "Jharkhand", "Amritsar": "Punjab", "Navi Mumbai": "Maharashtra", "Allahabad": "Uttar Pradesh", "Prayagraj": "Uttar Pradesh", "Ranchi": "Jharkhand", "Howrah": "West Bengal", "Coimbatore": "Tamil Nadu", "Jabalpur": "Madhya Pradesh", "Gwalior": "Madhya Pradesh", "Vijayawada": "Andhra Pradesh", "Jodhpur": "Rajasthan", "Madurai": "Tamil Nadu", "Raipur": "Chhattisgarh", "Kota": "Rajasthan", "Guwahati": "Assam", "Chandigarh": "Chandigarh", "Solapur": "Maharashtra", "Hubballi-Dharwad": "Karnataka", "Bareilly": "Uttar Pradesh", "Moradabad": "Uttar Pradesh", "Mysore": "Karnataka", "Gurgaon": "Haryana", "Gurugram": "Haryana", "Aligarh": "Uttar Pradesh", "Jalandhar": "Punjab", "Tiruchirappalli": "Tamil Nadu", "Bhubaneswar": "Odisha", "Salem": "Tamil Nadu", "Mira-Bhayandar": "Maharashtra", "Warangal": "Telangana", "Thiruvananthapuram": "Kerala", "Bhiwandi": "Maharashtra", "Saharanpur": "Uttar Pradesh", "Guntur": "Andhra Pradesh", "Amravati": "Maharashtra", "Bikaner": "Rajasthan", "Noida": "Uttar Pradesh", "Jamshedpur": "Jharkhand", "Bhilai": "Chhattisgarh", "Cuttack": "Odisha", "Firozabad": "Uttar Pradesh", "Kochi": "Kerala", "Nellore": "Andhra Pradesh", "Bhavnagar": "Gujarat", "Dehradun": "Uttarakhand", "Durgapur": "West Bengal", "Asansol": "West Bengal", "Rourkela": "Odisha", "Nanded": "Maharashtra", "Kolhapur": "Maharashtra", "Ajmer": "Rajasthan", "Akola": "Maharashtra", "Gulbarga": "Karnataka", "Jamnagar": "Gujarat", "Ujjain": "Madhya Pradesh", "Loni": "Uttar Pradesh", "Siliguri": "West Bengal", "Jhansi": "Uttar Pradesh", "Ulhasnagar": "Maharashtra", "Jammu": "Jammu and Kashmir", "Sangli": "Maharashtra", "Mangalore": "Karnataka", "Erode": "Tamil Nadu", "Belgaum": "Karnataka", "Ambattur": "Tamil Nadu", "Tirunelveli": "Tamil Nadu", "Malegaon": "Maharashtra", "Gaya": "Bihar", "Jalgaon": "Maharashtra", "Udaipur": "Rajasthan", "Maheshtala": "West Bengal", "Davanagere": "Karnataka", "Kozhikode": "Kerala", "Kurnool": "Andhra Pradesh", "Rajpur Sonarpur": "West Bengal", "Rajahmundry": "Andhra Pradesh", "Bokaro": "Jharkhand", "South Dumdum": "West Bengal", "Bellary": "Karnataka", "Patiala": "Punjab", "Gopalpur": "West Bengal", "Agartala": "Tripura", "Bhagalpur": "Bihar", "Muzaffarnagar": "Uttar Pradesh", "Bhatpara": "West Bengal", "Panihati": "West Bengal", "Latur": "Maharashtra", "Dhule": "Maharashtra", "Tirupati": "Andhra Pradesh", "Rohtak": "Haryana", "Korba": "Chhattisgarh", "Bhilwara": "Rajasthan", "Berhampur": "Odisha", "Muzaffarpur": "Bihar", "Ahmednagar": "Maharashtra", "Mathura": "Uttar Pradesh", "Kollam": "Kerala", "Avadi": "Tamil Nadu", "Kadapa": "Andhra Pradesh", "Kamarhati": "West Bengal", "Sambalpur": "Odisha", "Bilaspur": "Chhattisgarh", "Shahjahanpur": "Uttar Pradesh", "Satara": "Maharashtra", "Bijapur": "Karnataka", "Rampur": "Uttar Pradesh", "Shivamogga": "Karnataka", "Chandrapur": "Maharashtra", "Junagadh": "Gujarat", "Thrissur": "Kerala", "Alwar": "Rajasthan", "Bardhaman": "West Bengal", "Kulti": "West Bengal", "Nizamabad": "Telangana", "Parbhani": "Maharashtra", "Tumkur": "Karnataka", "Khammam": "Telangana", "Ozhukarai": "Puducherry", "Bihar Sharif": "Bihar", "Panipat": "Haryana", "Darbhanga": "Bihar", "Bally": "West Bengal", "Aizawl": "Mizoram", "Dewas": "Madhya Pradesh", "Ichalkaranji": "Maharashtra", "Karnal": "Haryana", "Bathinda": "Punjab", "Jalna": "Maharashtra", "Eluru": "Andhra Pradesh", "Barasat": "West Bengal", "Purnia": "Bihar", "Satna": "Madhya Pradesh", "Mau": "Uttar Pradesh", "Sonipat": "Haryana", "Farrukhabad": "Uttar Pradesh", "Sagar": "Madhya Pradesh", "Durg": "Chhattisgarh", "Imphal": "Manipur", "Ratlam": "Madhya Pradesh", "Hapur": "Uttar Pradesh", "Arrah": "Bihar", "Anantapur": "Andhra Pradesh", "Karimnagar": "Telangana", "Etawah": "Uttar Pradesh", "Ambarnath": "Maharashtra", "North Dumdum": "West Bengal", "Bharatpur": "Rajasthan", "Begusarai": "Bihar", "Gandhidham": "Gujarat", "Baranagar": "West Bengal", "Tiruvottiyur": "Tamil Nadu", "Sikar": "Rajasthan", "Thoothukudi": "Tamil Nadu", "Rewa": "Madhya Pradesh", "Mirzapur": "Uttar Pradesh", "Raichur": "Karnataka", "Pali": "Rajasthan", "Ramagundam": "Telangana", "Silchar": "Assam", "Haridwar": "Uttarakhand", "Vijayanagaram": "Andhra Pradesh", "Tenali": "Andhra Pradesh", "Nagercoil": "Tamil Nadu", "Sri Ganganagar": "Rajasthan", "Mango": "Jharkhand", "Thanjavur": "Tamil Nadu", "Bulandshahr": "Uttar Pradesh", "Uluberia": "West Bengal", "Katni": "Madhya Pradesh", "Sambhal": "Uttar Pradesh", "Singrauli": "Madhya Pradesh", "Nadiad": "Gujarat", "Secunderabad": "Telangana", "Naihati": "West Bengal", "Yamunanagar": "Haryana", "Bidhan Nagar": "West Bengal", "Pallavaram": "Tamil Nadu", "Bidar": "Karnataka", "Munger": "Bihar", "Panchkula": "Haryana", "Burhanpur": "Madhya Pradesh", "Kharagpur": "West Bengal", "Dindigul": "Tamil Nadu", "Gandhinagar": "Gujarat", "Hospet": "Karnataka", "Malda": "West Bengal", "Ongole": "Andhra Pradesh", "Deoghar": "Jharkhand", "Chapra": "Bihar", "Haldia": "West Bengal", "Khandwa": "Madhya Pradesh", "Nandyal": "Andhra Pradesh", "Morena": "Madhya Pradesh", "Amroha": "Uttar Pradesh", "Anand": "Gujarat", "Bhind": "Madhya Pradesh", "Madhyamgram": "West Bengal", "Bhiwani": "Haryana", "Berhampore": "West Bengal", "Ambala": "Haryana", "Morbi": "Gujarat", "Fatehpur": "Uttar Pradesh", "Raebareli": "Uttar Pradesh", "Chittoor": "Andhra Pradesh", "Bhusawal": "Maharashtra", "Orai": "Uttar Pradesh", "Bahraich": "Uttar Pradesh", "Phusro": "Jharkhand", "Vellore": "Tamil Nadu", "Mehsana": "Gujarat", "Raiganj": "West Bengal", "Sirsa": "Haryana", "Danapur": "Bihar", "Serampore": "West Bengal", "Guna": "Madhya Pradesh", "Jaunpur": "Uttar Pradesh", "Panvel": "Maharashtra", "Shivpuri": "Madhya Pradesh", "Surendranagar": "Gujarat", "Unnao": "Uttar Pradesh", "Chinsurah": "West Bengal", "Alappuzha": "Kerala", "Kottayam": "Kerala", "Machilipatnam": "Andhra Pradesh", "Shimla": "Himachal Pradesh", "Adoni": "Andhra Pradesh", "Udupi": "Karnataka", "Katihar": "Bihar", "Proddatur": "Andhra Pradesh", "Mahbubnagar": "Telangana", "Saharsa": "Bihar", "Dibrugarh": "Assam", "Jorhat": "Assam", "Hazaribagh": "Jharkhand", "Hindupur": "Andhra Pradesh", "Nagaon": "Assam", "Sasaram": "Bihar", "Hajipur": "Bihar", "Giridih": "Jharkhand", "Bhimavaram": "Andhra Pradesh", "Kumbakonam": "Tamil Nadu", "Bongaigaon": "Assam", "Dehri": "Bihar", "Madanapalle": "Andhra Pradesh", "Siwan": "Bihar", "Bettiah": "Bihar",
+        "Tinsukia": "Assam", "Guntakal": "Andhra Pradesh", "Srikakulam": "Andhra Pradesh", "Motihari": "Bihar", "Dharmavaram": "Andhra Pradesh", "Gudivada": "Andhra Pradesh", "Phagwara": "Punjab", "Pudukkottai": "Tamil Nadu", "Hosur": "Tamil Nadu", "Narasaraopet": "Andhra Pradesh", "Suryapet": "Telangana", "Miryalaguda": "Telangana", "Tadipatri": "Andhra Pradesh", "Karaikudi": "Tamil Nadu", "Kishanganj": "Bihar", "Jamalpur": "Bihar", "Ballia": "Uttar Pradesh", "Kavali": "Andhra Pradesh", "Tadepalligudem": "Andhra Pradesh", "Amaravati": "Andhra Pradesh", "Buxar": "Bihar", "Tezpur": "Assam", "Jehanabad": "Bihar", "Aurangabad": "Bihar", "Gangtok": "Sikkim", "Vasco Da Gama": "Goa", "Port Blair": "Andaman and Nicobar Islands"
+      }
+    };
+
+    function parseCityState(addr) {
+      if (!addr) return '';
+      var s = String(addr).trim();
+      var sLower = s.toLowerCase();
+
+      // 1. Clean Pincodes / India
+      // Remove generic 6-digit or 5-7 digit codes at the end
+      s = s.replace(/(?:(?:Pin|Zip|Code|Pincode)[\s.:-]*)?[-–\s]*\d{5,7}\s*$/i, '');
+      s = s.replace(/,?\s*(?:India|IN)\s*$/i, '');
+      var cleaned = s.replace(/[,.-]+$/, '').trim();
+
+      // BRUTE FORCE SEARCH
+      // Find the KNOWN city that appears LAST in the string
+      var matchedCity = null;
+      var matchedCityIndex = -1;
+
+      for (var city in INDIA_GEO.cities) {
+        var idx = sLower.indexOf(city.toLowerCase());
+        // We want the last occurrence if multiple, but usually just one unique city.
+        // Actually we want the right-most city in the string to be safe.
+        var lastIdx = sLower.lastIndexOf(city.toLowerCase());
+
+        if (lastIdx !== -1) {
+          // Heuristic: Prefer longer match if index is same? 
+          // Or just take the one that is furthest to the right (most specific location part usually at end).
+          // But beware of "New Delhi" vs "Delhi". 
+          // If we matched "Delhi" at index 10 and "New Delhi" at index 6, "New Delhi" spans up to 15.
+
+          // Let's store candidates and pick best.
+          // For simple brute force: keep the one that spans furthest right.
+          var endPos = lastIdx + city.length;
+          // Update if this city ends later than current best
+          if (!matchedCity || endPos > (matchedCityIndex + matchedCity.length)) {
+            matchedCity = city;
+            matchedCityIndex = lastIdx;
+          }
+          // If ends at same place, pick longer name (e.g. New Delhi over Delhi)
+          else if (endPos === (matchedCityIndex + matchedCity.length)) {
+            if (city.length > matchedCity.length) {
+              matchedCity = city;
+              matchedCityIndex = lastIdx;
+            }
+          }
+        }
+      }
+
+      // Find the KNOWN state that appears LAST in the string
+      // (ignoring the one implied by city for a moment, let's see what's written)
+      var matchedState = null;
+      var matchedStateIndex = -1;
+
+      for (var k = 0; k < INDIA_GEO.states.length; k++) {
+        var st = INDIA_GEO.states[k];
+        var idx = sLower.lastIndexOf(st.toLowerCase());
+        if (idx !== -1) {
+          var endPos = idx + st.length;
+          if (!matchedState || endPos > (matchedStateIndex + matchedState.length)) {
+            matchedState = st;
+            matchedStateIndex = idx;
+          }
+        }
+      }
+
+      // DECISION LOGIC
+
+      // 1. KNOWN CITY FOUND
+      if (matchedCity) {
+        var impliedState = INDIA_GEO.cities[matchedCity];
+        if (matchedState) {
+          return matchedCity + ', ' + matchedState;
+        } else {
+          return matchedCity + ', ' + impliedState;
+        }
+      }
+
+      // 2. ONLY KNOWN STATE FOUND (City unknown)
+      if (matchedState) {
+        // User Requirement: "if found city or state... no need to fetch full address"
+        // Heuristic: The word/token immediately BEFORE the state is likely the city.
+
+        var beforeState = s.substring(0, matchedStateIndex).trim();
+        // Remove trailing separators
+        beforeState = beforeState.replace(/[,.\s-]+$/, '');
+
+        // Get the last "chunk" (usually separated by comma)
+        var chunks = beforeState.split(',');
+        var lastChunk = chunks[chunks.length - 1].trim();
+
+        // Sanity check: reasonable length and contains letters
+        if (lastChunk.length > 0 && lastChunk.length < 30) {
+          // Strip trailing dash if any
+          lastChunk = lastChunk.replace(/[-]+$/, '').trim();
+
+          if (/[a-zA-Z]/.test(lastChunk)) {
+            return lastChunk + ', ' + matchedState;
+          }
+        }
+
+        // Fallback: If heuristic failed, return JUST the state.
+        return matchedState;
+      }
+
+      // 3. NOTHING FOUND -> Return Full Address (Cleaned)
+      // Legacy comma heuristic as last resort before giving up?
+      var parts = cleaned.split(',').map(function (p) { return p.trim() }).filter(function (p) { return p });
+      if (parts.length >= 2) {
+        var last = parts[parts.length - 1];
+        var dashes = last.split(/\s+[-–]\s+/);
+        if (dashes.length >= 2) {
+          return dashes[dashes.length - 2] + ', ' + dashes[dashes.length - 1];
+        }
+        // Heuristic if simple comma separation exists
+        return parts[parts.length - 2] + ', ' + parts[parts.length - 1];
+      }
+
+      return cleaned;
+    }
+
+    function renderClientSuggestions(query) {
+      var box = document.getElementById('client-suggestions');
+      box.innerHTML = '';
+
+      var showAll = !query; // Show all if input is empty
+      var qLower = (query || '').toLowerCase();
+
+      var matches = [];
+      if (showAll) {
+        matches = CLIENTS;
+      } else {
+        matches = CLIENTS.filter(function (c) {
+          return String(c.name || '').toLowerCase().indexOf(qLower) !== -1;
+        });
+      }
+
+      // HANDLE EMPTY STATE (Loading or No Data)
+      if (showAll && !matches.length) {
+        var msgDiv = document.createElement('div');
+        msgDiv.className = 'suggestion-item';
+        msgDiv.style.color = '#9ca3af';
+        msgDiv.style.cursor = 'default';
+        if (CLIENTS.length === 0) {
+          msgDiv.textContent = 'Loading clients...';
+        } else {
+          msgDiv.textContent = 'No clients found.';
+        }
+        box.appendChild(msgDiv);
+        box.classList.remove('hidden');
+        return;
+      }
+
+      // Exact match check (only relevant if filtered)
+      var exactExists = false;
+      if (!showAll) {
+        exactExists = CLIENTS.some(function (c) {
+          return String(c.name || '').trim().toLowerCase() === qLower;
+        });
+      }
+
+      // If no matches and not showing all, maybe show "Add"
+      if (!matches.length && !showAll) {
+        if (query.length > 1 && !exactExists) {
+          renderAddClientOption(box, query);
+          box.classList.remove('hidden');
+        } else {
+          box.classList.add('hidden');
+        }
+        return;
+      }
+
+      // Render matches
+      matches.forEach(function (c) {
+        var item = document.createElement('div');
+        item.className = 'suggestion-item client-suggestion-item';
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'suggestion-name client-suggestion-name';
+        nameEl.textContent = c.name || '';
+
+        var metaEl = document.createElement('div');
+        metaEl.className = 'client-suggestion-meta';
+
+        // FORMAT: Client Name + POC Name + Address (City, State)
+        // No phone number.
+        var cityState = parseCityState(c.address || '');
+        var parts = [];
+        if (c.poc) parts.push(c.poc);
+        if (cityState) parts.push(cityState);
+
+        metaEl.textContent = parts.join(' • ');
+
+        item.appendChild(nameEl);
+        item.appendChild(metaEl);
+        item.onclick = function () {
+          selectExistingClient(c);
+        };
+        box.appendChild(item);
+      });
+
+      // Append "Add new" option at the bottom if applicable
+      if (!showAll && query.length > 1 && !exactExists) {
+        renderAddClientOption(box, query);
+      }
+
+      box.classList.remove('hidden');
+    }
+
+    function renderAddClientOption(box, query) {
+      var addDiv = document.createElement('div');
+      addDiv.className = 'suggestion-item client-suggestion-add';
+      addDiv.textContent = 'Add "' + query + '" as new client';
+      addDiv.onclick = function () {
+        selectNewClient(query);
+      };
+      box.appendChild(addDiv);
+    }
+
+
+    function hideClientSuggestions() {
+      var box = document.getElementById('client-suggestions');
+      box.classList.add('hidden');
+    }
+
+    function fillShipToFromClient(c) {
+      if (!c) return;
+      document.getElementById('field-poc').value = c.poc || '';
+      document.getElementById('field-phone').value = c.phone || '';
+      document.getElementById('field-email').value = c.email || '';
+      document.getElementById('field-address').value = c.address || '';
+    }
+
+    function selectExistingClient(c) {
+      document.getElementById('field-client-name').value = c.name || '';
+      var mode = getShipToMode();
+      if (mode === 'client') {
+        fillShipToFromClient(c);
+      }
+      hideClientSuggestions();
+
+      // Load projects from Clients sheet
+      fetchProjectsForClient(c.name || '');
+      // Load products from Masters sheet
+      fetchProductsForClient(c.name || '');
+    }
+
+    function selectNewClient(name) {
+      document.getElementById('field-client-name').value = name;
+      hideClientSuggestions();
+      updateProjectGlobal([]); // no predefined projects yet
+      updateProductDatalist([]); // no predefined products yet
+    }
+
+    document.addEventListener('click', function (evt) {
+      // client suggestions
+      var cBox = document.getElementById('client-suggestions');
+      var cInput = document.getElementById('field-client-name');
+      if (cBox && !cBox.contains(evt.target) && evt.target !== cInput) {
+        hideClientSuggestions();
+      }
+
+      // project suggestions
+      var pBox = document.getElementById('project-suggestions');
+      var pInput = document.getElementById('field-project');
+      if (pBox && !pBox.contains(evt.target) && evt.target !== pInput) {
+        hideProjectSuggestions();
+      }
+    });
+
+    /* -----------------------------------------
+       PROJECT OPTIONS (Custom Autocomplete)
+       --------------------------------------*/
+    function updateProjectGlobal(projects) {
+      PROJECTS = projects || [];
+      // If the field is currently focused, refresh the suggestions immediately
+      var input = document.getElementById('field-project');
+      if (input && document.activeElement === input) {
+        renderProjectSuggestions(input.value.trim());
+      }
+    }
+
+    function onProjectInput(e) {
+      var q = (e.target.value || '').trim();
+      renderProjectSuggestions(q);
+    }
+
+    function renderProjectSuggestions(query) {
+      var box = document.getElementById('project-suggestions');
+      box.innerHTML = '';
+
+      var qLower = query.toLowerCase();
+      var matches = PROJECTS;
+
+      if (query) {
+        matches = PROJECTS.filter(function (p) {
+          return p.toLowerCase().indexOf(qLower) !== -1;
+        });
+      }
+
+      if (!matches.length) {
+        if (query) {
+          var item = document.createElement('div');
+          item.className = 'suggestion-item suggestion-add';
+          item.textContent = 'Use "' + query + '"';
+          item.onclick = function () {
+            hideProjectSuggestions();
+          };
+          box.appendChild(item);
+          box.classList.remove('hidden');
+        } else {
+          box.classList.add('hidden');
+        }
+        return;
+      }
+
+      matches.forEach(function (p) {
+        var item = document.createElement('div');
+        item.className = 'suggestion-item project-suggestion-item';
+        var name = document.createElement('div');
+        name.className = 'suggestion-name project-suggestion-name';
+        name.textContent = p;
+        item.onclick = function () {
+          selectProject(p);
+        };
+        box.appendChild(item);
+      });
+
+      box.classList.remove('hidden');
+    }
+
+    function hideProjectSuggestions() {
+      var box = document.getElementById('project-suggestions');
+      if (box) box.classList.add('hidden');
+    }
+
+    function selectProject(name) {
+      var input = document.getElementById('field-project');
+      input.value = name;
+      hideProjectSuggestions();
+    }
+
+    function fetchProjectsForClient(clientName) {
+      var loader = document.getElementById('project-loader');
+      if (loader) loader.classList.remove('hidden');
+
+      var input = document.getElementById('field-project');
+      if (input) {
+        input.placeholder = 'Loading projects...';
+        input.value = '';
+      }
+
+      updateProjectGlobal([]);
+
+      if (!clientName) {
+        if (loader) loader.classList.add('hidden');
+        return;
+      }
+
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        if (loader) loader.classList.add('hidden');
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (loader) loader.classList.add('hidden');
+          if (input) input.placeholder = 'Select or type project...';
+
+          if (!res || !res.ok) {
+            updateProjectGlobal([]);
+            return;
+          }
+          updateProjectGlobal(res.projects || []);
+        })
+        .withFailureHandler(function (err) {
+          if (loader) loader.classList.add('hidden');
+          console.error('api_getProjectsForClient error:', err);
+        })
+        .api_getProjectsForClient(clientName);
+    }
+
+    /* -----------------------------------------
+       PRODUCT OPTIONS (from Masters [Item] rows)
+       --------------------------------------*/
+    function updateProductDatalist(products) {
+      PRODUCTS = products || [];
+      var dl = document.getElementById('products-datalist');
+      if (!dl) return;
+      dl.innerHTML = '';
+
+      PRODUCTS.forEach(function (p) {
+        var opt = document.createElement('option');
+        opt.value = p;
+        dl.appendChild(opt);
+      });
+    }
+
+    function fetchProductsForClient(clientName) {
+      updateProductDatalist([]);
+      if (!clientName) return;
+      if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok) return;
+          updateProductDatalist(res.products || []);
+        })
+        .withFailureHandler(function (err) {
+          console.error('api_getProductsForClient error:', err);
+        })
+        .api_getProductsForClient(clientName);
+    }
+
+
+
+    /* -----------------------------------------
+       ITEMS TABLE
+       --------------------------------------*/
+    function addItemRow(desc, qty, amount) {
+      var tbody = document.getElementById('items-tbody');
+      var rowIndex = tbody.rows.length;
+      var tr = document.createElement('tr');
+
+      var tdIdx = document.createElement('td');
+      tdIdx.textContent = rowIndex + 1;
+
+      var tdDesc = document.createElement('td');
+      var inpDesc = document.createElement('input');
+      inpDesc.type = 'text';
+      inpDesc.setAttribute('list', 'products-datalist'); // Enable autocomplete
+      inpDesc.value = desc || '';
+      tdDesc.appendChild(inpDesc);
+
+      var tdQty = document.createElement('td');
+      var inpQty = document.createElement('input');
+      inpQty.type = 'number';
+      inpQty.min = '0';
+      inpQty.step = '1';
+      inpQty.value = qty != null ? qty : '';
+      inpQty.oninput = recalcTotals;
+      tdQty.appendChild(inpQty);
+
+      var tdAmt = document.createElement('td');
+      var inpAmt = document.createElement('input');
+      inpAmt.type = 'number';
+      inpAmt.min = '0';
+      inpAmt.step = '0.01';
+      inpAmt.value = amount != null ? amount : '';
+      inpAmt.oninput = recalcTotals;
+      tdAmt.appendChild(inpAmt);
+
+      var tdRemove = document.createElement('td');
+      tdRemove.className = 'right';
+      var btnR = document.createElement('button');
+      btnR.type = 'button';
+      btnR.className = 'btn btn-ghost btn-small';
+      btnR.textContent = '×';
+      btnR.onclick = function () {
+        tbody.removeChild(tr);
+        renumberItems();
+        recalcTotals();
+      };
+      tdRemove.appendChild(btnR);
+
+      tr.appendChild(tdIdx);
+      tr.appendChild(tdDesc);
+      tr.appendChild(tdQty);
+      tr.appendChild(tdAmt);
+      tr.appendChild(tdRemove);
+
+      tbody.appendChild(tr);
+      recalcTotals();
+    }
+
+    function renumberItems() {
+      var tbody = document.getElementById('items-tbody');
+      for (var i = 0; i < tbody.rows.length; i++) {
+        tbody.rows[i].cells[0].textContent = i + 1;
+      }
+    }
+
+    function getItemsData() {
+      var tbody = document.getElementById('items-tbody');
+      var items = [];
+      for (var i = 0; i < tbody.rows.length; i++) {
+        var row = tbody.rows[i];
+        var desc = row.cells[1].querySelector('input').value || '';
+        var qtyVal = row.cells[2].querySelector('input').value || '';
+        var amtVal = row.cells[3].querySelector('input').value || '';
+        if (!desc && !qtyVal && !amtVal) continue;
+        var qty = Number(qtyVal || 0);
+        var amt = Number(amtVal || 0);
+        items.push({ desc: desc, qty: qty, amount: amt });
+      }
+      return items;
+    }
+
+    function recalcTotals() {
+      var items = getItemsData();
+      var totalQty = 0;
+      var subtotal = 0;
+      items.forEach(function (it) {
+        totalQty += Number(it.qty || 0);
+        subtotal += Number(it.amount || 0);
+      });
+      var gst = subtotal * 0.18;
+      var grand = subtotal + gst;
+
+      document.getElementById('chip-total-qty').textContent =
+        'Total Qty: ' + totalQty;
+      document.getElementById('chip-subtotal').textContent =
+        'Subtotal: ₹' + subtotal.toFixed(2);
+      document.getElementById('chip-gst').textContent =
+        'GST 18%: ₹' + gst.toFixed(2);
+      document.getElementById('chip-grand').textContent =
+        'Total (incl. GST): ₹' + grand.toFixed(2);
+
+      // 🔴 NEW: Toggle E-way bill warning if Total incl. GST ≥ 50,000
+      var ew = document.getElementById('eway-warning');
+      if (ew) {
+        if (grand >= 50000) {
+          ew.style.display = 'block';
+        } else {
+          ew.style.display = 'none';
+        }
+      }
+    }
+
+    /* -----------------------------------------
+       OCR
+       --------------------------------------*/
+    function runOcr() {
+      var statusEl = document.getElementById('ocr-status');
+      statusEl.style.color = '#6b7280';
+      if (!invoiceFile) {
+        statusEl.textContent = 'Please upload an invoice file first.';
+        return;
+      }
+      if (!(typeof FileReader !== 'undefined')) {
+        statusEl.textContent = 'FileReader not supported in this environment.';
+        return;
+      }
+
+      statusEl.textContent = 'Running OCR (Doc AI)…';
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var dataUrl = e.target.result;
+        var filename = invoiceFile.name || 'invoice';
+
+        if (typeof google === 'undefined' || !google.script || !google.script.run) {
+          statusEl.textContent = 'google.script.run not available in preview.';
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function (res) {
+            handleOcrResult(res, filename, dataUrl, true);
+          })
+          .withFailureHandler(function () {
+            statusEl.textContent =
+              'Doc AI failed, falling back to Vision OCR…';
+            google.script.run
+              .withSuccessHandler(function (res2) {
+                handleOcrResult(res2, filename, dataUrl, false);
+              })
+              .withFailureHandler(function (err2) {
+                statusEl.style.color = '#b91c1c';
+                statusEl.textContent =
+                  'OCR failed: ' + (err2 && err2.message ? err2.message : err2);
+              })
+              .api_parseInvoice(filename, dataUrl);
+          })
+          .api_parseInvoice_docai(filename, dataUrl);
+      };
+      reader.readAsDataURL(invoiceFile);
+    }
+
+    function handleOcrResult(res, filename, dataUrl, wasDocAI) {
+      var statusEl = document.getElementById('ocr-status');
+      if (!res || res.ok === false) {
+        statusEl.style.color = '#b91c1c';
+        statusEl.textContent =
+          (wasDocAI ? 'Doc AI error: ' : 'OCR error: ') +
+          (res && res.msg ? res.msg : 'Unknown error');
+        return;
+      }
+
+      var items = res.items || [];
+      if (!items.length) {
+        statusEl.style.color = '#6b7280';
+        statusEl.textContent =
+          (wasDocAI ? 'Doc AI ' : 'OCR ') +
+          'did not find structured line items. You can fill manually.';
+        return;
+      }
+
+      var tbody = document.getElementById('items-tbody');
+      tbody.innerHTML = '';
+      items.forEach(function (it) {
+        addItemRow(it.desc || '', it.qty || 0, it.amount || 0);
+      });
+      recalcTotals();
+      statusEl.style.color = '#15803d';
+      statusEl.textContent =
+        'Items filled from ' + (wasDocAI ? 'Doc AI' : 'Vision') + ' OCR.';
+    }
+
+    /* -----------------------------------------
+       SUBMIT DISPATCH
+       --------------------------------------*/
+    function submitDispatch() {
+      hideStatus();
+      var btn = document.getElementById('btn-submit');
+      btn.disabled = true;
+
+      var dateStr = document.getElementById('field-date').value || '';
+      var clientName = document.getElementById('field-client-name').value || '';
+      var projectName = document.getElementById('field-project').value || '';
+      var installerName = document.getElementById('field-installer').value || '';
+      var poc = document.getElementById('field-poc').value || '';
+      var phone = document.getElementById('field-phone').value || '';
+      var email = document.getElementById('field-email').value || '';
+      var address = document.getElementById('field-address').value || '';
+      var items = getItemsData();
+
+      if (!dateStr || !clientName) {
+        showError('Please fill Date and Select Client before submitting.');
+        btn.disabled = false;
+        return;
+      }
+      if (!items.length) {
+        showError('Please add at least one line item.');
+        btn.disabled = false;
+        return;
+      }
+
+      var payload = {
+        date: dateStr,
+        clientName: clientName,
+        clientAddress: address,
+        poc: poc,
+        phone: phone,
+        clientEmail: email,
+        projectDetails: projectName,
+        items: items,
+        installerName: installerName
+      };
+
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        showError('google.script.run not available in preview.');
+        btn.disabled = false;
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled = false;
+          if (!res || res.ok === false) {
+            showError('Server error: ' + (res && res.msg ? res.msg : 'Unknown error'));
+            return;
+          }
+          var dispatchId = res.dispatchId || '';
+          var url = res.combinedPdfUrl || '';
+          showSuccess(dispatchId, url);
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled = false;
+          showError(
+            'Submit failed: ' + (err && err.message ? err.message : err)
+          );
+        })
+        .api_submitDispatch(payload);
+    }
+
+    function showSuccess(dispatchId, url) {
+      var box = document.getElementById('submit-status');
+      var title = document.getElementById('submit-status-title');
+      var text = document.getElementById('submit-status-text');
+      var link = document.getElementById('btn-download-pdf');
+
+      title.textContent = 'Dispatch generated successfully.';
+      text.textContent =
+        'Dispatch ID: ' +
+        dispatchId +
+        (url ? ' • Combined PDF is ready to download.' : '');
+
+      if (url) {
+        link.href = url;
+        link.classList.remove('hidden');
+        // Auto-open PDF in new tab on successful submission
+        try {
+          window.open(url, '_blank');
+        } catch (e) {
+          console.warn('Popup blocked while opening PDF:', e);
+        }
+      } else {
+        link.href = '#';
+        link.classList.add('hidden');
+      }
+
+      box.style.display = 'flex';
+      box.classList.remove('hidden');
+      document.getElementById('error-status').classList.add('hidden');
+    }
+
+    function showError(msg) {
+      var box = document.getElementById('error-status');
+      var text = document.getElementById('error-status-text');
+      text.textContent = msg || 'Something went wrong.';
+      box.style.display = 'flex';
+      box.classList.remove('hidden');
+      document.getElementById('submit-status').classList.add('hidden');
+    }
+
+    function hideStatus() {
+      document.getElementById('submit-status').classList.add('hidden');
+      document.getElementById('error-status').classList.add('hidden');
+    }
+
+    function resetForm() {
+      hideStatus();
+      document.getElementById('field-date').value = '';
+      document.getElementById('field-client-name').value = '';
+      document.getElementById('field-project').value = '';
+      document.getElementById('field-installer').value = '';
+      document.getElementById('field-poc').value = '';
+      document.getElementById('field-phone').value = '';
+      document.getElementById('field-email').value = '';
+      document.getElementById('field-address').value = '';
+      document.getElementById('field-invoice-file').value = '';
+      invoiceFile = null;
+      document.getElementById('ocr-status').textContent = '';
+      updateProductDatalist([]); // Clear products
+
+      var tbody = document.getElementById('items-tbody');
+      tbody.innerHTML = '';
+      addItemRow();
+      recalcTotals();
+
+      // Re-init to reset date, ship-to mode & reload lists
+      init();
+    }
+  </script>
+
+  <!-- Hidden datalist for dynamic product options -->
+  <datalist id="products-datalist"></datalist>
+</body>
+
+<!-- ===== FLOATING CHAT ASSISTANT (DROP-IN MODULE) ===== -->
+<style>
+  #ide-chat-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #D4DE47;
+    color: #111;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-family: 'Mark Pro';
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+  }
+
+  #ide-chat-box {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 320px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.18);
+    padding: 12px;
+    display: none;
+    z-index: 9999;
+    font-family: 'Mark Pro';
+  }
+
+  #ide-chat-box textarea {
+    width: 100%;
+    height: 70px;
+    padding: 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-family: 'Mark Pro';
+    font-size: 12px;
+    resize: none;
+  }
+
+  #ide-chat-send {
+    margin-top: 8px;
+    width: 100%;
+    background: #D4DE47;
+    border: none;
+    padding: 8px 0;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  #ide-chat-answer {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #333;
+    max-height: 180px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+</style>
+
+<div id="ide-chat-btn">Chat Assistant</div>
+
+<div id="ide-chat-box">
+  <textarea id="ide-chat-msg" placeholder="Ask me anything about this sheet..."></textarea>
+  <button id="ide-chat-send">Send</button>
+  <div id="ide-chat-answer"></div>
+</div>
+
+<script>
+  (function () {
+    const btn = document.getElementById('ide-chat-btn');
+    const box = document.getElementById('ide-chat-box');
+    const send = document.getElementById('ide-chat-send');
+    const out = document.getElementById('ide-chat-answer');
+
+    btn.onclick = () => box.style.display = (box.style.display === 'none' || box.style.display === '') ? 'block' : 'none';
+
+    send.onclick = function () {
+      const msg = document.getElementById('ide-chat-msg').value.trim();
+      if (!msg) { alert("Enter a question"); return; }
+
+      out.innerHTML = "Thinking…";
+
+      // 🔥 FIXED SCOPE PER PAGE — CHANGE PER FILE
+      const payload = {
+        message: msg,
+        scope: CHAT_SCOPE,    // defined below
+        page: CHAT_SCOPE,
+        url: window.location.href
+      };
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res && res.ok) {
+            out.innerHTML = res.answer;
+          } else {
+            out.innerHTML = "Error: " + (res.msg || 'Unknown');
+          }
+        })
+        .withFailureHandler(err => {
+          out.innerHTML = "Server Error: " + err.message;
+        })
+        .api_dispatchChatAssistant(payload);
+    };
+  })();
+</script>
+
+<!-- ===== DEFINE PAGE-SPECIFIC SCOPE HERE ===== -->
+<script>
+  const CHAT_SCOPE = "master";
+</script>
+
+</html>

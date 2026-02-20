@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Urgent Pending Dispatch Alerts</title>
+    <style>
+        /* Mark Pro font family */
+        @font-face {
+            font-family: 'Mark Pro';
+            src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_u5un9a.woff2') format('woff2'),
+                url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116960/Mark_Pro_cw9z0d.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Mark Pro';
+            src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116949/MarkPro-Medium_ovo2ic.woff2') format('woff2'),
+                url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116948/MarkPro-Medium_coqjal.woff') format('woff');
+            font-weight: 500;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Mark Pro';
+            src: url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_e07jes.woff2') format('woff2'),
+                url('https://res.cloudinary.com/du5vwtwvr/raw/upload/v1763116955/MarkPro-Bold_yhvupw.woff') format('woff');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        :root {
+            --brand: #D4DE47;
+            --bg: #f3f4f6;
+            --text: #111827;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            font-family: 'Mark Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            color: var(--text);
+        }
+
+        .wrapper {
+            width: 100%;
+            background-color: var(--bg);
+            padding: 24px 0;
+        }
+
+        .card {
+            max-width: 680px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 2px solid var(--danger);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            background-color: #fef2f2;
+        }
+
+        .title-block {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin: 0;
+            color: #991b1b;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            font-weight: 500;
+            color: #b91c1c;
+            margin: 0;
+        }
+
+        .pill {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background-color: var(--danger);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #ffffff;
+        }
+
+        .logo img {
+            max-height: 40px;
+            width: auto;
+            display: block;
+            margin-left: auto;
+        }
+
+        .card-body {
+            padding: 24px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #111827;
+        }
+
+        .intro-text {
+            margin-top: 0;
+            margin-bottom: 24px;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .dispatch-item {
+            background-color: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .dispatch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dispatch-client {
+            font-size: 16px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin: 0 0 4px 0;
+        }
+
+        .dispatch-id {
+            display: inline-block;
+            padding: 2px 8px;
+            background-color: #111827;
+            color: #ffffff;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .dispatch-meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin: 0;
+        }
+
+        .status-warning {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .status-danger {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            background-color: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .meta-col {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .meta-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+        }
+
+        .meta-value {
+            font-size: 13px;
+            font-weight: 500;
+            color: #111827;
+        }
+
+        .footer {
+            padding: 20px 24px;
+            background-color: #f9fafb;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .card {
+                margin: 0 10px;
+            }
+
+            .card-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .logo {
+                margin-top: 12px;
+                align-self: flex-start;
+            }
+
+            .logo img {
+                margin-left: 0;
+            }
+
+            .meta-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="card">
+            <div class="card-header">
+                <div class="title-block">
+                    <h1 class="title">Action Required</h1>
+                    <p class="subtitle">Pending Dispatches Overview</p>
+                    <span class="pill">Overdue &gt; 2 Days</span>
+                </div>
+                <div class="logo">
+                    <img src="https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png"
+                        alt="IDE Autoworks" />
+                </div>
+            </div>
+
+            <div class="card-body">
+                <p class="intro-text">
+                    Team,<br><br>
+                    The following dispatch records have been pending for more than 48 hours without a customer
+                    notification being sent. Please ensure the courier slip is uploaded and the customer is notified
+                    immediately via the portal.
+                </p>
+
+                <? if (dispatches && dispatches.length > 0) { ?>
+                <? for (var i = 0; i < dispatches.length; i++) { 
+               var d = dispatches[i]; 
+               var hasTracking = !!(d.tracking_id || d.courier_slip_url || d.courier_company);
+          ?>
+                <div class="dispatch-item">
+                    <div class="dispatch-header">
+                        <div>
+                            <h3 class="dispatch-client">
+                                <?= d.client_name || 'Unknown Client' ?>
+                            </h3>
+                            <p class="dispatch-meta">
+                                <?= d.project_name || 'N/A' ?>
+                            </p>
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="dispatch-id">
+                                <?= d.dispatch_id ?>
+                            </span>
+                            <br>
+                            <? if (hasTracking) { ?>
+                            <span class="status-warning">Missing Email Dispatch</span>
+                            <? } else { ?>
+                            <span class="status-danger">Missing Courier Slip & Email</span>
+                            <? } ?>
+                        </div>
+                    </div>
+
+                    <div class="meta-grid">
+                        <div class="meta-col">
+                            <span class="meta-label">Dispatch Date</span>
+                            <span class="meta-value">
+                                <?= new Date(d.date).toLocaleDateString() ?>
+                            </span>
+                        </div>
+                        <div class="meta-col">
+                            <span class="meta-label">Days Pending</span>
+                            <span class="meta-value" style="color: var(--danger); font-weight: 700;">
+                                <?= d.days_pending ?> Days
+                            </span>
+                        </div>
+                        <div class="meta-col">
+                            <span class="meta-label">Courier Name</span>
+                            <span class="meta-value">
+                                <?= d.courier_company || 'Pending Upload' ?>
+                            </span>
+                        </div>
+                        <div class="meta-col">
+                            <span class="meta-label">Tracking ID</span>
+                            <span class="meta-value">
+                                <?= d.tracking_id || 'Pending Upload' ?>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <? } ?>
+                <? } else { ?>
+                <div
+                    style="padding: 32px; text-align: center; background-color: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0;">
+                    <p style="color: #166534; font-weight: 600; font-size: 16px; margin: 0;">🎉 All caught up!</p>
+                    <p style="color: #15803d; font-size: 13px; margin: 8px 0 0 0;">No packages have been pending for
+                        more than 2 days.</p>
+                </div>
+                <? } ?>
+            </div>
+
+            <div class="footer">
+                <p>This is an automated digest from the Master Dispatch Portal.</p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
