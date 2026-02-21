@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Plus, Trash2, Printer, Search, Loader2, FileDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -16,6 +16,9 @@ export default function DispatchForm() {
     const [selectedClient, setSelectedClient] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [stats, setStats] = useState({}); // { itemDesc: { dispatched: X, master: Y } }
+    const [isOcrRunning, setIsOcrRunning] = useState(false);
+    const [ocrStatus, setOcrStatus] = useState('');
+    const fileInputRef = useRef(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -169,6 +172,66 @@ export default function DispatchForm() {
         }
     };
 
+    const runOcr = async (filename, dataUrl) => {
+        setIsOcrRunning(true);
+        setOcrStatus('Running OCR...');
+        try {
+            const apiUrl = import.meta.env.VITE_GOOGLE_CLIENTS_API_URL;
+            if (!apiUrl) throw new Error('API URL not configured');
+
+            const res = await fetch(apiUrl, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'ocr', filename, dataUrl })
+            });
+            const result = await res.json();
+
+            if (result.status === 'success' || result.ok) {
+                // If it's the sophisticated DocAI parser from appscript.txt
+                const ocrItems = result.items || [];
+                // If it's the simpler Drive OCR from recommended_app_script.gs
+                // we might only get text or tracking info. 
+                // But the user said it was working for invoice items before.
+
+                if (ocrItems.length > 0) {
+                    const mappedItems = ocrItems.map((it, idx) => ({
+                        id: Date.now() + idx,
+                        desc: it.desc || '',
+                        qty: it.qty || '',
+                        amount: it.amount || '',
+                        masterQty: 0,
+                        dispatchedSoFar: 0,
+                        pendingQty: 0
+                    }));
+                    setItems(mappedItems);
+                    setOcrStatus('OCR Successful!');
+                } else if (result.text) {
+                    setOcrStatus('OCR Done (no items found)');
+                } else {
+                    setOcrStatus('OCR completed with no specific results');
+                }
+            } else {
+                throw new Error(result.message || result.msg || 'OCR failed');
+            }
+        } catch (error) {
+            console.error('OCR Error:', error);
+            setOcrStatus(`OCR Error: ${error.message}`);
+        } finally {
+            setIsOcrRunning(false);
+            setTimeout(() => setOcrStatus(''), 5000);
+        }
+    };
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            runOcr(file.name, event.target.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
     const handleSave = async () => {
         if (!formData.clientName || !formData.projectName) {
             alert('Please select client and project.');
@@ -320,10 +383,10 @@ export default function DispatchForm() {
                                 <input
                                     list="project-options"
                                     type="text"
-                                    placeholder={selectedClient ? "Search or type project..." : "Select client first..."}
+                                    placeholder={formData.clientName ? "Search or type project..." : "Select client first..."}
                                     value={formData.projectName}
                                     onChange={handleProjectChange}
-                                    disabled={!selectedClient}
+                                    disabled={!formData.clientName}
                                     className="pl-8 w-full text-xs p-2 border border-gray-300 rounded-md bg-gray-50 focus:bg-white outline-none disabled:bg-gray-100"
                                 />
                                 <datalist id="project-options">
@@ -408,10 +471,31 @@ export default function DispatchForm() {
                         <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">Step 3: <span className="text-gray-600">Invoice / OCR</span> (Optional)</h2>
                         <span className="bg-white/50 text-gray-700 px-2 py-0.5 rounded text-[10px] font-bold border border-brand/30">Step 3</span>
                     </div>
-                    <div className="p-4 flex flex-col items-center justify-center h-48 border-2 border-dashed border-gray-100 rounded-lg m-4 bg-gray-50 hover:border-brand transition-colors cursor-pointer group">
-                        <Upload className="text-gray-300 group-hover:text-brand transition-colors mb-2" size={24} />
-                        <p className="text-xs font-medium text-gray-500">Upload Invoice PDF/Image</p>
-                        <p className="text-[10px] text-gray-400 mt-1">AI auto-fill items</p>
+                    <div
+                        onClick={() => !isOcrRunning && fileInputRef.current?.click()}
+                        className={cn(
+                            "p-4 flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-lg m-4 transition-colors cursor-pointer group",
+                            isOcrRunning ? "bg-gray-100 border-brand" : "bg-gray-50 border-gray-100 hover:border-brand"
+                        )}
+                    >
+                        {isOcrRunning ? (
+                            <Loader2 className="text-brand animate-spin mb-2" size={24} />
+                        ) : (
+                            <Upload className="text-gray-300 group-hover:text-brand transition-colors mb-2" size={24} />
+                        )}
+                        <p className="text-xs font-medium text-gray-500">
+                            {isOcrRunning ? 'Processing Invoice...' : 'Upload Invoice PDF/Image'}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                            {ocrStatus || 'AI auto-fill items'}
+                        </p>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileUpload}
+                            accept="application/pdf,image/*"
+                            className="hidden"
+                        />
                     </div>
                 </div>
 
