@@ -315,17 +315,23 @@ export default function DispatchForm() {
 
                         <div className="space-y-1">
                             <label className="text-[10px] font-semibold text-gray-600 block">Project</label>
-                            <select
-                                value={formData.projectName}
-                                onChange={handleProjectChange}
-                                disabled={!selectedClient}
-                                className="w-full text-xs p-2 border border-gray-300 rounded-md bg-white outline-none disabled:bg-gray-100"
-                            >
-                                <option value="">Select Project...</option>
-                                {selectedClient?.projects?.map((p, i) => (
-                                    <option key={i} value={p.name}>{p.name}</option>
-                                ))}
-                            </select>
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-2.5 text-gray-400 w-3 h-3" />
+                                <input
+                                    list="project-options"
+                                    type="text"
+                                    placeholder={selectedClient ? "Search or type project..." : "Select client first..."}
+                                    value={formData.projectName}
+                                    onChange={handleProjectChange}
+                                    disabled={!selectedClient}
+                                    className="pl-8 w-full text-xs p-2 border border-gray-300 rounded-md bg-gray-50 focus:bg-white outline-none disabled:bg-gray-100"
+                                />
+                                <datalist id="project-options">
+                                    {selectedClient?.projects?.map((p, i) => (
+                                        <option key={i} value={p.name} />
+                                    ))}
+                                </datalist>
+                            </div>
                         </div>
 
                         <div className="pt-2 border-t border-gray-100">
