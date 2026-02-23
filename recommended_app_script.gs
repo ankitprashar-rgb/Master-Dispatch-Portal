@@ -639,7 +639,7 @@ function api_syncSheetToSupabase_v3() {
       }
     }
 
-    logMsg('Sync Successful! Verified ' + payloads.length + ' dispatches and ' + itemsCount + ' manifest items from "' + TAB_NAME + '".');
+    logMsg('Sync Successful! Verified ' + payloads.length + ' dispatches and ' + itemsCount + ' manifest items from "Masters_Normalized_Verify".');
 
   } catch (err) {
     logMsg('Critical Sync Error: ' + String(err));
@@ -716,6 +716,7 @@ function handleCreateDispatch(data) {
 function handleUpdateDispatch(dispatchId, data) {
   try {
     var TAB_NAME = 'Masters_Normalized_Verify';
+    var MASTER_SHEET_ID = '1WVh5Nc_wtBfrFQrJCno63mQXd47oJZjgU27jTApwjJY';
     var ss = SpreadsheetApp.openById(MASTER_SHEET_ID);
     var sh = ss.getSheetByName(TAB_NAME);
     if (!sh) return { status: 'error', message: TAB_NAME + ' sheet not found' };
@@ -796,8 +797,6 @@ function checkAndAlertPendingDispatches() {
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   var cutoffIso = twoDaysAgo.toISOString();
   
-  // Query Supabase: All dispatches where email_sent_at is null AND date is less than (older than) 2 days ago
-  // We use the REST API: /rest/v1/dispatches?email_sent_at=is.null&date=lt.{cutoffIso}&select=*
   var path = 'dispatches?email_sent_at=is.null&date=lt.' + encodeURIComponent(cutoffIso) + '&select=*&is_archived=eq.false';
   
   var result = supabaseRestCall(SUPABASE_URL, SUPABASE_ANON_KEY, path, 'GET', null);
@@ -814,7 +813,6 @@ function checkAndAlertPendingDispatches() {
     return;
   }
   
-  // Clean up data for the template
   var now = new Date();
   var emailData = pendingDispatches.map(function(d) {
     var dDate = new Date(d.date);
@@ -834,7 +832,6 @@ function checkAndAlertPendingDispatches() {
     };
   });
   
-  // Send email using HTML template
   try {
     var tpl = HtmlService.createTemplateFromFile('TeamAlertEmailTemplate');
     tpl.dispatches = emailData;
@@ -855,6 +852,7 @@ function checkAndAlertPendingDispatches() {
     Logger.log("Failed to send alert email: " + e.message);
   }
 }
+
 /**
  * DOC AI INVOICE PARSER
  */
@@ -870,8 +868,6 @@ function api_parseInvoice_docai(filename, dataUrl) {
     }
 
     var base64 = String(dataUrl).split(',')[1];
-    if (!base64) return { ok: false, msg: 'Bad data URL for invoice file' };
-
     var url = 'https://' + location +
       '-documentai.googleapis.com/v1/projects/' + project +
       '/locations/' + location + '/processors/' + procId + ':process';
@@ -897,24 +893,13 @@ function api_parseInvoice_docai(filename, dataUrl) {
 
     var status = res.getResponseCode();
     var text   = res.getContentText();
-    var json;
-
-    try {
-      json = JSON.parse(text);
-    } catch (e) {
-      return { ok: false, msg: 'DocAI JSON parse error: ' + e };
-    }
+    var json = JSON.parse(text);
 
     if (status !== 200) {
-      var errMsg = (json.error && json.error.message) ? json.error.message : text;
-      return { ok: false, msg: 'DocAI HTTP ' + status + ': ' + errMsg };
+      return { ok: false, msg: 'DocAI Error: ' + text };
     }
 
     var doc = json.document || (json.documents && json.documents[0]);
-    if (!doc && json.outputDocuments && json.outputDocuments.documents) {
-        doc = json.outputDocuments.documents[0].document || json.outputDocuments.documents[0];
-    }
-
     if (!doc) return { ok: false, msg: 'DocAI: no document found' };
 
     var items = [];
@@ -948,17 +933,7 @@ function api_parseInvoice_docai(filename, dataUrl) {
       }
     });
 
-    if (items.length === 0 && doc.pages) {
-      // Table Parser Fallback... (Simplified version for space)
-      doc.pages.forEach(function(page) {
-        (page.tables || []).forEach(function(table) {
-             // simplified table logic
-        });
-      });
-    }
-
-    var fullText = doc.text || '';
-    return { ok: true, items: items, text: fullText };
+    return { ok: true, items: items, text: doc.text || '' };
   } catch (err) {
     return { ok: false, msg: String(err) };
   }
@@ -991,13 +966,8 @@ function api_parseInvoice(filename, dataUrl) {
 
     var lines = text.split('\n');
     var items = [];
-    
-    // Exact Regex for clean invoices
     var rowRe = /(.*?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:[.,]\d+)?)(?:\s+₹?\s*([\d,]+(?:\.\d+)?))?$/i;
 
-    lines.forEach(function(L) {
-      if (!L.trim()) return;
-      
     lines.forEach(function(L) {
       if (!L.trim()) return;
       var clean = L.replace(/[₹,]/g, '').trim();
@@ -1061,7 +1031,7 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
-    // Deduplicate items based on description and amount to avoid overlapping heuristic hits
+    // Deduplicate items
     var uniqueItems = [];
     var seen = {};
     items.forEach(function(it) {
