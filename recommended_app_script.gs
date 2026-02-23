@@ -428,7 +428,7 @@ function extractTrackingInfo(text) {
   for (var k in candSet) { candidates.push(k); }
   candidates.sort(function(a, b) { return b.length - a.length; });
   // 1. Look for explicit labels like "AWB No", "Docket", etc. near a candidate
-  var labelMatches = text.match(/(AWB|AIRWAY BILL|DOCKET|TRACKING|CONS\.? NO)\s*[:\.#-]*\s*([A-Z0-9\-]{6,})/i);
+  var labelMatches = text.match(/(AWB|AIRWAY BILL|DOCKET|TRACKING|CONS\.? NO|FORM NO|NO)\s*(?:NO\.?|#|[:\.#-])*\s*([A-Z0-9\-]{7,})/i);
   if (labelMatches && labelMatches[2]) {
     trackingId = labelMatches[2].replace(/\s+/g, '');
   }
@@ -1037,8 +1037,7 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
-    // --- STRATEGY 2: TABLE RECONSTRUCTION (For Columnar OCR) ---
-    // If we have few items, try to correlate numbered descriptions with number blocks
+    // --- STRATEGY 2: RECONSTRUCTION (For Grouped/Clumped OCR) ---
     if (items.length < 2) {
       var descriptions = [];
       var dataBlocks = [];
@@ -1047,34 +1046,47 @@ function api_parseInvoice(filename, dataUrl) {
         var trimmed = L.trim();
         if (!trimmed) return;
         
-        // Find lines starting with numbers 1 to 50
-        var descMatch = trimmed.match(/^(\d+)\s+([A-Z].*)/i);
+        // A. Extract Numbered Descriptions (e.g., "1 Rear Windshield...")
+        var descMatch = trimmed.match(/^(\d{1,2})\s+([A-Z].{10,})/i); 
         if (descMatch) {
-          descriptions.push({ idx: Number(descMatch[1]), text: descMatch[2] });
+          descriptions.push(descMatch[2].trim());
+          return; 
         }
-        
-        // Find lines with multiple currency/amount-like numbers
-        var nums = trimmed.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g) || [];
+
+        // B. Extract Clumped Data Blocks (e.g., "998391 300 40 12000 998391 1 2130 2130")
+        // We look for patterns of 3 or 4 numbers in a row
+        var nums = trimmed.match(/(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/g) || [];
         if (nums.length >= 3) {
-          var cleanNums = nums.map(function(n) { return Number(n.replace(/,/g, '')); });
-          if (cleanNums.length >= 3 && cleanNums[0] > 100) { // Likely HSN or Price
-             dataBlocks.push(cleanNums);
-          }
+           var nVals = nums.map(function(n){ return Number(n.replace(/,/g, '')); });
+           // Sliding window: if we see blocks of 4 starting with a 6-digit HSN (998x)
+           for (var k = 0; k < nVals.length; k++) {
+              var val = nVals[k];
+              // If it looks like an HSN (6 digits) and there are 3 numbers after it
+              if (val >= 990000 && val <= 999999 && (k + 3) < nVals.length) {
+                 dataBlocks.push({ qty: nVals[k+1], rate: nVals[k+2], amt: nVals[k+3] });
+                 k += 3; // jump
+              } 
+              // Fallback: groups of 3 (Qty, Rate, Amount) if they are valid numbers
+              else if (val > 0 && val < 5000 && (k + 2) < nVals.length) {
+                 var next1 = nVals[k+1];
+                 var next2 = nVals[k+2];
+                 // If Row Total check passes roughly (Qty * Rate = Amount)
+                 if (Math.abs((val * next1) - next2) < 5) {
+                    dataBlocks.push({ qty: val, rate: next1, amt: next2 });
+                    k += 2;
+                 }
+              }
+           }
         }
       });
       
       if (descriptions.length > 0 && dataBlocks.length > 0) {
-        // Pairs them up by order
         for (var pi = 0; pi < Math.min(descriptions.length, dataBlocks.length); pi++) {
-          var block = dataBlocks[pi];
-          // Usually: HSN, Qty, Rate, Amount OR Qty, Rate, Amount
-          var qVal = (block.length === 4) ? block[1] : (block.length === 3 ? block[0] : 1);
-          var aVal = block[block.length - 1];
           items.push({ 
-            desc: descriptions[pi].text, 
-            qty: qVal, 
-            amount: aVal, 
-            method: 'table_reconstruct' 
+            desc: descriptions[pi], 
+            qty: dataBlocks[pi].qty, 
+            amount: dataBlocks[pi].amt, 
+            method: 'clumped_reconstruct' 
           });
         }
       }
@@ -1091,7 +1103,7 @@ function api_parseInvoice(filename, dataUrl) {
        }
     });
 
-    return { ok: true, items: uniqueItems, text: text, ocr_method: 'vision_v2' };
+    return { ok: true, items: uniqueItems, text: text, ocr_method: 'vision_v3' };
   } catch (err) {
     return { ok: false, msg: String(err) };
   }
