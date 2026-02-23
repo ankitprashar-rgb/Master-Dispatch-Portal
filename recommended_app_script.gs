@@ -1036,74 +1036,54 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
-    // --- STRATEGY 7: PRECISION OCR (Document-Wide Sweep) ---
-    var allPotentialDescriptions = [];
-    var allNumbers = [];
-    var junkWords = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'invoice', 'date', 'hsn', 'qty', 'rate', 'amount', 'code', 'sac', 'bank', 'ifsc', 'account', 'pan', 'state', 'pincode', 'address', 'name', 'client', 'consignee', 'bill', 'proforma', 'quotation', 'estimate'];
+    // --- STRATEGY 8: BACK-RELATIONAL EXTRACTION (Precision Engine) ---
+    var itemsV8 = [];
+    var junkWordsv8 = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'invoice', 'date', 'code', 'sac', 'bank', 'ifsc', 'account', 'pan', 'state', 'pincode', 'address', 'name', 'client', 'consignee', 'bill', 'proforma', 'quotation', 'estimate', 'terms', 'condition', 'signat', 'word', 'regist', 'number'];
 
-    // Part A: Collect all potential descriptions and ALL numbers
+    // Part A: Collect all valid data blocks (Qty * Rate = Amt)
+    var allNumbersv8 = [];
     lines.forEach(function(L) {
-      var trimmed = L.trim();
-      if (!trimmed || trimmed.length < 3) return;
-      
-      // 1. Collect Numbers (Flattened) - Supports 1,88,000 and 1000.00
-      var matches = trimmed.match(/(\d[\d,]*\.?\d+)/g) || [];
-      matches.forEach(function(m) {
+      var nums = L.match(/(\d[\d,]*\.?\d+)/g) || [];
+      nums.forEach(function(m) {
         var n = Number(m.replace(/,/g, ''));
-        if (!isNaN(n) && n > 0) allNumbers.push(n);
+        if (!isNaN(n) && n > 0) allNumbersv8.push({ val: n, line: L });
       });
-
-      // 2. Collect Descriptions
-      var lowerL = trimmed.toLowerCase();
-      var hasManyNums = (trimmed.match(/\d/g) || []).length > (trimmed.match(/[a-z]/gi) || []).length;
-      var isJunk = junkWords.some(function(j) { return lowerL.indexOf(j) !== -1 && lowerL.length < (j.length + 5); });
-      
-      if (!hasManyNums && !isJunk && trimmed.length > 5) {
-        // Skip Noise like "1 Chennai" or "02 Delhi" which break alignment
-        if (/^(\d{1,2})\s+[A-Z][a-z]+$/.test(trimmed)) return;
-
-        var cleaned = trimmed.replace(/^(\d{1,2})[\s\.\)-]+\s*/, '').trim();
-        if (cleaned.length > 4) allPotentialDescriptions.push(cleaned);
-      }
     });
 
-    // Part B: Document-Wide Sliding Window for Data Blocks
-    var foundData = [];
-    for (var k = 0; k < allNumbers.length; k++) {
-      var val = allNumbers[k];
-      
-      // Scenario 1: HSN + Qty + Rate + Amt (4 sequence)
-      if (val >= 1000 && val <= 99999999 && (k + 3) < allNumbers.length) {
-        var q1 = allNumbers[k+1], r1 = allNumbers[k+2], a1 = allNumbers[k+3];
-        if (q1 > 0 && r1 > 0 && Math.abs((q1 * r1) - a1) < (a1 * 0.12 + 20)) {
-          foundData.push({ qty: q1, rate: r1, amt: a1, method: 'v7_hsn' });
-          k += 3; continue;
-        }
-      }
-      
-      // Scenario 2: Qty + Rate + Amt (3 sequence)
-      if (val > 0 && val < 50000 && (k + 2) < allNumbers.length) {
-        var r2 = allNumbers[k+1], a2 = allNumbers[k+2];
-        if (r2 > 0 && Math.abs((val * r2) - a2) < (a2 * 0.12 + 20)) {
-          foundData.push({ qty: val, rate: r2, amt: a2, method: 'v7_standard' });
+    // Strategy: Search for math-valid triplets in the flattened number stream
+    for (var k = 0; k < allNumbersv8.length; k++) {
+      var n1 = allNumbersv8[k].val;
+      // Sequence: Qty + Rate + Amt
+      if (n1 > 0 && n1 < 10000 && (k + 2) < allNumbersv8.length) {
+        var n2 = allNumbersv8[k+1].val, n3 = allNumbersv8[k+2].val;
+        if (n2 > 0 && Math.abs((n1 * n2) - n3) < (n3 * 0.15 + 20)) {
+          // Success! Now find the "Closest Description"
+          var desc = "Custom Item";
+          var targetLine = allNumbersv8[k].line;
+          var lineIdx = lines.indexOf(targetLine);
+          
+          // Look backwards from the line where the numbers were found
+          for (var b = lineIdx; b >= Math.max(0, lineIdx - 6); b--) {
+            var cand = lines[b].trim();
+            var lowerCand = cand.toLowerCase();
+            var hasAlpha = /[a-z]/i.test(cand);
+            var isJunk = junkWordsv8.some(function(j) { return lowerCand.indexOf(j) !== -1 && lowerCand.length < (j.length + 5); });
+            var isShortNoise = cand.length < 5 || /^(\d{1,2})\s+[A-Z][a-z]+$/.test(cand);
+            
+            if (hasAlpha && !isJunk && !isShortNoise) {
+              desc = cand.replace(/^(\d{1,2})[\s\.\)-]+\s*/, '').replace(/\b\d{6}\b/g, '').trim();
+              if (desc.length > 5) break; 
+            }
+          }
+          
+          itemsV8.push({ desc: desc, qty: n1, amount: n3, method: 'v8_relational' });
           k += 2; continue;
         }
       }
     }
 
-    // Part C: Reconstruct Table
-    if (allPotentialDescriptions.length > 0 && foundData.length > 0) {
-      var tableItems = [];
-      var maxItems = Math.min(allPotentialDescriptions.length, foundData.length);
-      for (var pi = 0; pi < maxItems; pi++) {
-        tableItems.push({ 
-          desc: allPotentialDescriptions[pi], 
-          qty: foundData[pi].qty, 
-          amount: foundData[pi].amt, 
-          method: foundData[pi].method || 'abs_reconstruct_v7' 
-        });
-      }
-      if (tableItems.length >= items.length) items = tableItems;
+    if (itemsV8.length > 0) {
+      items = itemsV8;
     }
 
     // Deduplicate and filter junk
@@ -1122,8 +1102,8 @@ function api_parseInvoice(filename, dataUrl) {
       ok: true, 
       items: uniqueItems, 
       text: text, 
-      debug: { descCount: allPotentialDescriptions.length, dataCount: foundData.length },
-      ocr_method: uniqueItems.length > 0 ? (uniqueItems[0].method || 'vision_v7') : 'vision_v7'
+      debug: { itemsFound: itemsV8.length },
+      ocr_method: itemsV8.length > 0 ? (itemsV8[0].method || 'vision_v8') : 'vision_v8'
     };
   } catch (err) {
     return { ok: false, msg: String(err) };
