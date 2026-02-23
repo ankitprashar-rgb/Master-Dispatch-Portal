@@ -32,57 +32,48 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
     const totalAmount = subTotal + gstAmount;
 
     const handlePrint = () => {
-        const printWindow = window.open('', '_blank', 'width=900,height=1200');
+        const printSource = document.querySelector('.print-area');
+        if (!printSource) return;
 
-        // Copy all computed styles from the current page so Tailwind classes work
-        const styles = Array.from(document.styleSheets)
-            .map(sheet => {
-                try {
-                    return Array.from(sheet.cssRules).map(rule => rule.cssText).join('\n');
-                } catch (e) {
-                    // Cross-origin stylesheets can't be read — skip them
-                    return '';
+        // 1. Clone the styled content
+        const portal = document.createElement('div');
+        portal.id = 'dispatch-print-portal';
+        portal.innerHTML = printSource.innerHTML;
+
+        // 2. Inject a style that hides everything in <body> EXCEPT our portal
+        const overrideStyle = document.createElement('style');
+        overrideStyle.id = 'dispatch-print-style';
+        overrideStyle.innerHTML = `
+            @media print {
+                body > *:not(#dispatch-print-portal) { display: none !important; }
+                #dispatch-print-portal {
+                    display: block !important;
+                    position: absolute !important;
+                    top: 0; left: 0;
+                    width: 100%;
+                    background: white;
                 }
-            }).join('\n');
+                #dispatch-print-portal .overflow-y-auto { overflow: visible !important; }
+                #dispatch-print-portal .max-h-screen { max-height: none !important; }
+                #dispatch-print-portal .shadow-2xl { box-shadow: none !important; }
+                #dispatch-print-portal .rounded-lg { border-radius: 0 !important; }
+                * {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                }
+                @page { size: A4; margin: 10mm; }
+            }
+        `;
 
-        // Grab just the document content (inside print-area), not the modal shell
-        const content = document.querySelector('.print-area')?.innerHTML || '';
+        // 3. Append both to body and print — Tailwind classes all work since same document
+        document.head.appendChild(overrideStyle);
+        document.body.appendChild(portal);
+        window.print();
 
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <title>Dispatch Document</title>
-                <style>${styles}</style>
-                <style>
-                    @page { size: A4; margin: 0; }
-                    html, body { margin: 0; padding: 0; background: white; }
-                    * {
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        color-adjust: exact !important;
-                    }
-                    /* Remove constraints from print wrapper */
-                    .overflow-y-auto { overflow: visible !important; }
-                    .max-h-screen { max-height: none !important; }
-                    .rounded-lg { border-radius: 0 !important; }
-                    .shadow-2xl { box-shadow: none !important; }
-                    .w-\\[210mm\\] { width: 100% !important; }
-                    .p-2 { padding: 0 !important; }
-                </style>
-            </head>
-            <body>${content}</body>
-            </html>
-        `);
-        printWindow.document.close();
-
-        // Small delay to let images and fonts load
-        setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-        }, 800);
+        // 4. Clean up after print dialog closes
+        document.body.removeChild(portal);
+        document.head.removeChild(overrideStyle);
 
         if (onPrintSuccess) onPrintSuccess(data.id);
     };
