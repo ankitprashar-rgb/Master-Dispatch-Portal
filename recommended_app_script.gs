@@ -1036,17 +1036,18 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
-    // --- STRATEGY 8: BACK-RELATIONAL EXTRACTION (Precision Engine) ---
+    // --- STRATEGY 8: BACK-RELATIONAL EXTRACTION (v8.1) ---
     var itemsV8 = [];
-    var junkWordsv8 = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'invoice', 'date', 'code', 'sac', 'bank', 'ifsc', 'account', 'pan', 'state', 'pincode', 'address', 'name', 'client', 'consignee', 'bill', 'proforma', 'quotation', 'estimate', 'terms', 'condition', 'signat', 'word', 'regist', 'number'];
+    var junkWordsv8 = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'invoice', 'date', 'code', 'sac', 'bank', 'ifsc', 'account', 'pan', 'state', 'pincode', 'address', 'name', 'client', 'consignee', 'bill', 'proforma', 'quotation', 'estimate', 'terms', 'condition', 'signat', 'word', 'regist', 'number', 'authorized'];
 
     // Part A: Collect all valid data blocks (Qty * Rate = Amt)
     var allNumbersv8 = [];
     lines.forEach(function(L) {
-      var nums = L.match(/(\d[\d,]*\.?\d+)/g) || [];
+      // FIX: Robust regex for single digits and Indian formatting
+      var nums = L.match(/(\d[\d,]*(\.\d+)?)/g) || [];
       nums.forEach(function(m) {
         var n = Number(m.replace(/,/g, ''));
-        if (!isNaN(n) && n > 0) allNumbersv8.push({ val: n, line: L });
+        if (!isNaN(n) && n >= 0) allNumbersv8.push({ val: n, line: L });
       });
     });
 
@@ -1054,39 +1055,33 @@ function api_parseInvoice(filename, dataUrl) {
     for (var k = 0; k < allNumbersv8.length; k++) {
       var n1 = allNumbersv8[k].val;
       // Sequence: Qty + Rate + Amt
-      if (n1 > 0 && n1 < 10000 && (k + 2) < allNumbersv8.length) {
+      if ((k + 2) < allNumbersv8.length) {
         var n2 = allNumbersv8[k+1].val, n3 = allNumbersv8[k+2].val;
-        if (n2 > 0 && Math.abs((n1 * n2) - n3) < (n3 * 0.15 + 20)) {
-          // Success! Now find the "Closest Description"
+        if (n1 > 0 && n2 > 0 && Math.abs((n1 * n2) - n3) < (n3 * 0.15 + 20)) {
           var desc = "Custom Item";
           var targetLine = allNumbersv8[k].line;
           var lineIdx = lines.indexOf(targetLine);
           
-          // Look backwards from the line where the numbers were found
           for (var b = lineIdx; b >= Math.max(0, lineIdx - 6); b--) {
             var cand = lines[b].trim();
             var lowerCand = cand.toLowerCase();
             var hasAlpha = /[a-z]/i.test(cand);
             var isJunk = junkWordsv8.some(function(j) { return lowerCand.indexOf(j) !== -1 && lowerCand.length < (j.length + 5); });
-            var isShortNoise = cand.length < 5 || /^(\d{1,2})\s+[A-Z][a-z]+$/.test(cand);
             
-            if (hasAlpha && !isJunk && !isShortNoise) {
+            if (hasAlpha && !isJunk && cand.length > 5) {
               desc = cand.replace(/^(\d{1,2})[\s\.\)-]+\s*/, '').replace(/\b\d{6}\b/g, '').trim();
               if (desc.length > 5) break; 
             }
           }
-          
-          itemsV8.push({ desc: desc, qty: n1, amount: n3, method: 'v8_relational' });
+          itemsV8.push({ desc: desc, qty: n1, amount: n3, method: 'v8.1_relational' });
           k += 2; continue;
         }
       }
     }
 
-    if (itemsV8.length > 0) {
-      items = itemsV8;
-    }
+    if (itemsV8.length > 0) items = itemsV8;
 
-    // Deduplicate and filter junk
+    // Deduplicate
     var uniqueItems = [];
     var seen = {};
     items.forEach(function(it) {
@@ -1102,8 +1097,8 @@ function api_parseInvoice(filename, dataUrl) {
       ok: true, 
       items: uniqueItems, 
       text: text, 
-      debug: { itemsFound: itemsV8.length },
-      ocr_method: itemsV8.length > 0 ? (itemsV8[0].method || 'vision_v8') : 'vision_v8'
+      debug: { itemsFound: uniqueItems.length, rawLines: lines.length },
+      ocr_method: uniqueItems.length > 0 ? (uniqueItems[0].method || 'vision_v8.1') : 'vision_v8.1'
     };
   } catch (err) {
     return { ok: false, msg: String(err) };
