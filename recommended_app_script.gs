@@ -219,15 +219,19 @@ function doPost(e) {
       }
     }
 
-    // Extraction heuristic for Tracking IDs
+    // EXTRACTION: Tracking / Candidates (LEGACY STYLE)
     if (res.ok && res.text) {
       var info = extractTrackingInfo(res.text);
       res.detectedTrackingId = info.trackingId;
       res.detectedCourier = info.courier;
+      res.candidates = info.candidates || [];
     }
 
-    // ALWAYS return success status if we got this far
-    if (res.ok) res.status = 'success';
+    // Unified Response Standardization
+    if (res.ok) {
+      res.status = 'success';
+      res.ok = true;
+    }
 
     return ContentService.createTextOutput(JSON.stringify(res))
       .setMimeType(ContentService.MimeType.JSON);
@@ -405,32 +409,47 @@ function handleOCR(params) {
 function extractTrackingInfo(text) {
   var trackingId = null;
   var courier = null;
+  var candSet = {};
   
+  var lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i].trim();
+    if (!l) continue;
+    // Legacy: Find any alphanumeric string with 8+ chars
+    var matches = l.match(/[A-Z0-9\-]{8,}/gi) || [];
+    for (var j = 0; j < matches.length; j++) {
+      var t = matches[j].replace(/\s+/g, '');
+      candSet[t] = true;
+    }
+  }
+
+  var candidates = [];
+  for (var k in candSet) { candidates.push(k); }
+  candidates.sort(function(a, b) { return b.length - a.length; });
+  trackingId = candidates.length ? candidates[0] : null;
+
   var tUpper = text.toUpperCase();
-
-  if (tUpper.indexOf("TRACKON") !== -1) courier = "Trackon";
-  else if (tUpper.indexOf("BLUEDART") !== -1 || tUpper.indexOf("BLUE DART") !== -1) courier = "BlueDart";
-  else if (tUpper.indexOf("DELHIVERY") !== -1) courier = "Delhivery";
-  else if (tUpper.indexOf("DTDC") !== -1) courier = "DTDC";
-  else if (tUpper.indexOf("AMAZON") !== -1) courier = "Amazon";
-
-  // Common tracking patterns
-  var patterns = [
-    /AWB\s*[:\-#]?\s*([A-Z0-9]{8,15})/i,
-    /([0-9]{12})/, // Trackon uses 12 digits e.g., 100435251380
-    /([0-9]{11})/, // BlueDart uses 11 digits
-    /TRK\s*[:\-#]?\s*([0-9]{8,15})/i
+  var known = [
+    { k: 'TRACKON', name: 'Trackon' },
+    { k: 'BLUEDART', name: 'BlueDart' },
+    { k: 'BLUE DART', name: 'BlueDart' },
+    { k: 'DELHIVERY', name: 'Delhivery' },
+    { k: 'DTDC', name: 'DTDC' },
+    { k: 'AMAZON', name: 'Amazon' },
+    { k: 'XPRESSBEES', name: 'XpressBees' },
+    { k: 'EKART', name: 'Ekart' },
+    { k: 'SHADOWFAX', name: 'Shadowfax' },
+    { k: 'PROFESSIONAL', name: 'The Professional Couriers' }
   ];
-  
-  for (var i = 0; i < patterns.length; i++) {
-    var match = text.match(patterns[i]);
-    if (match) {
-      trackingId = match[1] || match[0];
+
+  for (var n = 0; n < known.length; n++) {
+    if (tUpper.indexOf(known[n].k) !== -1) {
+      courier = known[n].name;
       break;
     }
   }
-  
-  return { trackingId: trackingId, courier: courier };
+
+  return { trackingId: trackingId, courier: courier, candidates: candidates.slice(0, 10) };
 }
 
 /**
@@ -989,6 +1008,19 @@ function api_parseInvoice(filename, dataUrl) {
           return;
         }
       }
+
+      // 1.1 Legacy "Amount Only" Regex Fallback
+      var amountOnlyRe = /(.*?)\s+(\d+(?:\.\d+)?)\s+₹?\s*([\d,]+(?:\.\d+)?)/i;
+      var matchAmount = L.match(amountOnlyRe);
+      if (matchAmount) {
+         var d2 = matchAmount[1].trim();
+         var q2 = Number(matchAmount[2]);
+         var a2 = Number(String(matchAmount[3]).replace(/,/g, ''));
+         if (d2.length > 3 && isNaN(Number(d2))) {
+           items.push({ desc: d2, qty: q2, amount: a2 });
+           return;
+         }
+      }
       
       // 2. ULTRA-ROBUST CATCH-ALL HEURISTIC
       // If a line ends with a number, we assume it's a line item
@@ -996,19 +1028,14 @@ function api_parseInvoice(filename, dataUrl) {
       var parts = clean.split(/\s+/);
       if (parts.length >= 2) {
         var last = Number(parts[parts.length - 1]);
-        if (!isNaN(last) && last > 0 && last < 10000000) { // sanity check
+        if (!isNaN(last) && last > 0 && last < 10000000) { 
           var prev = Number(parts[parts.length - 2]);
           var q = (!isNaN(prev) && prev > 0 && prev < 10000) ? prev : 1;
-          
-          // The description is everything before the numbers
           var sliceIdx = (!isNaN(prev) && prev > 0 && prev < 10000) ? -2 : -1;
           var d = parts.slice(0, sliceIdx).join(' ').trim();
-          
-          // Filter out obvious junk/headers
           var lowerD = d.toLowerCase();
           var junk = ['total', 'subtotal', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'invoice', 'date', 'phone', 'mobile'];
           var isJunk = junk.some(function(j) { return lowerD.indexOf(j) !== -1; });
-          
           if (d.length > 2 && !isJunk && isNaN(Number(d))) {
              items.push({ desc: d, qty: q, amount: last });
           }

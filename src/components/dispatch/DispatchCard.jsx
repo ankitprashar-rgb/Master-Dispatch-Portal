@@ -13,44 +13,14 @@ export default function DispatchCard({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
-    const [isOcrLoading, setIsOcrLoading] = useState(false);
-    const [isOcrSuccess, setIsOcrSuccess] = useState(false);
-    const [isEmailLoading, setIsEmailLoading] = useState(false);
-    const [isEmailSuccess, setIsEmailSuccess] = useState(false);
-    const [email, setEmail] = useState(data.client_email || data.dispatch_data?.clientEmail || '');
-    const fileInputRef = useRef(null);
-
-    // Status Logic
-    const isSent = !!data.email_sent_at;
-    const isArchived = !!data.is_archived;
-    const hasTrackingInfo = !!(data.tracking_id || data.courier_company || data.courier_slip_url || data.dispatch_data?.trackingId || data.dispatch_data?.courierCompany || data.dispatch_data?.courierSlipUrl);
-    const isProcessed = !isSent && hasTrackingInfo;
-    const isPending = !isSent && !isProcessed;
-
-    // Unified Items Logic (Prefer relational items, fallback to JSONB)
-    const items = (data.dispatch_items && data.dispatch_items.length > 0)
-        ? data.dispatch_items.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, masterQty: i.master_qty }))
-        : (data.dispatch_data?.items?.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty })) || []);
-    const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-    const totalAmount = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-
-    const handleEmailUpdate = (e) => {
-        setEmail(e.target.value);
-    };
-
-    const handleSaveEmail = () => {
-        onUpdate(data.id, 'client_email', email);
-    };
-
-    const handleArchive = () => {
-        onUpdate(data.id, 'is_archived', !isArchived);
-    };
+    const [ocrCandidates, setOcrCandidates] = useState([]);
 
     const handleOcrUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         setIsOcrLoading(true);
+        setOcrCandidates([]);
         try {
             const reader = new FileReader();
             const dataUrl = await new Promise((res, rej) => {
@@ -62,7 +32,7 @@ export default function DispatchCard({
             // Call Google Apps Script OCR if key is present, else mock
             const apiUrl = import.meta.env.VITE_GOOGLE_CLIENTS_API_URL;
             console.log("Attempting OCR fetch to:", apiUrl);
-            
+
             if (apiUrl) {
                 try {
                     // Send to Apps Script for actual OCR processing
@@ -79,10 +49,16 @@ export default function DispatchCard({
                         })
                     });
 
-                    // Try to parse JSON. If CORS fails, this will throw.
+                    // Try to parse JSON.
                     const result = await response.json();
 
-                    if (result.status === 'success') {
+                    // Check for ok: true OR status: 'success'
+                    if (result.ok || result.status === 'success') {
+                        // Store candidates for UI selection
+                        if (result.candidates && result.candidates.length > 0) {
+                            setOcrCandidates(result.candidates);
+                        }
+
                         if (result.detectedTrackingId) {
                             onUpdate(data.id, 'tracking_id', result.detectedTrackingId);
                             if (result.detectedCourier) {
@@ -94,7 +70,7 @@ export default function DispatchCard({
                             setTimeout(() => setIsOcrSuccess(false), 3000);
                         }
                     } else {
-                        console.error("OCR API returned an error status.", result.message);
+                        console.error("OCR API returned an error status.", result.message || result.msg);
                     }
 
                 } catch (fetchErr) {
@@ -411,6 +387,26 @@ export default function DispatchCard({
                                         </div>
 
                                         <div className="h-px bg-gray-900/10 w-full mb-6"></div>
+
+                                        {ocrCandidates.length > 0 && (
+                                            <div className="bg-brand/10 border border-brand-hover p-3 rounded-xl space-y-2">
+                                                <p className="text-[9px] font-black uppercase text-gray-900 tracking-widest">Suggestions (Found {ocrCandidates.length})</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {ocrCandidates.map(c => (
+                                                        <button
+                                                            key={c}
+                                                            onClick={() => {
+                                                                onUpdate(data.id, 'tracking_id', c);
+                                                                setOcrCandidates([]);
+                                                            }}
+                                                            className="px-2 py-1 bg-white border border-gray-900/10 rounded-lg text-[10px] font-black text-gray-900 hover:bg-brand transition-colors"
+                                                        >
+                                                            {c}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="space-y-4">
                                             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Client Communication</h4>
