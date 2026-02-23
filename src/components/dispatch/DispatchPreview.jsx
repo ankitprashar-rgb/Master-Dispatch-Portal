@@ -32,8 +32,58 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
     const totalAmount = subTotal + gstAmount;
 
     const handlePrint = () => {
-        window.print();
-        // The user wants to mark it as sent/saved after printing
+        const printWindow = window.open('', '_blank', 'width=900,height=1200');
+
+        // Copy all computed styles from the current page so Tailwind classes work
+        const styles = Array.from(document.styleSheets)
+            .map(sheet => {
+                try {
+                    return Array.from(sheet.cssRules).map(rule => rule.cssText).join('\n');
+                } catch (e) {
+                    // Cross-origin stylesheets can't be read — skip them
+                    return '';
+                }
+            }).join('\n');
+
+        // Grab just the document content (inside print-area), not the modal shell
+        const content = document.querySelector('.print-area')?.innerHTML || '';
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Dispatch Document</title>
+                <style>${styles}</style>
+                <style>
+                    @page { size: A4; margin: 0; }
+                    html, body { margin: 0; padding: 0; background: white; }
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
+                    /* Remove constraints from print wrapper */
+                    .overflow-y-auto { overflow: visible !important; }
+                    .max-h-screen { max-height: none !important; }
+                    .rounded-lg { border-radius: 0 !important; }
+                    .shadow-2xl { box-shadow: none !important; }
+                    .w-\\[210mm\\] { width: 100% !important; }
+                    .p-2 { padding: 0 !important; }
+                </style>
+            </head>
+            <body>${content}</body>
+            </html>
+        `);
+        printWindow.document.close();
+
+        // Small delay to let images and fonts load
+        setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+        }, 800);
+
         if (onPrintSuccess) onPrintSuccess(data.id);
     };
 
