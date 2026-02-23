@@ -19,6 +19,7 @@ export default function DispatchCard({
     const [isEmailLoading, setIsEmailLoading] = useState(false);
     const [isEmailSuccess, setIsEmailSuccess] = useState(false);
     const [email, setEmail] = useState(data.client_email || data.dispatch_data?.clientEmail || '');
+    const [previewUrl, setPreviewUrl] = useState(data.courier_slip_url || '');
     const fileInputRef = useRef(null);
 
     // Status Logic
@@ -56,7 +57,10 @@ export default function DispatchCard({
         try {
             const reader = new FileReader();
             const dataUrl = await new Promise((res, rej) => {
-                reader.onload = () => res(reader.result);
+                reader.onload = () => {
+                    setPreviewUrl(reader.result);
+                    res(reader.result);
+                };
                 reader.onerror = rej;
                 reader.readAsDataURL(file);
             });
@@ -358,18 +362,67 @@ export default function DispatchCard({
                                     <div className="relative z-10 space-y-6">
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between pb-1">
-                                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Tracking Info</h4>
+                                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Logistics & Tracking</h4>
                                                 {!isSent && <span className="px-2 py-0.5 bg-red-600 text-white rounded text-[9px] font-black uppercase tracking-widest animate-pulse">Action Required</span>}
                                             </div>
+
+                                            {/* LIVE PREVIEW WITH ZOOM */}
+                                            {previewUrl && (
+                                                <div className="relative w-full aspect-[4/3] bg-gray-900 rounded-2xl overflow-hidden group/preview border border-gray-900/20 shadow-xl">
+                                                    <img
+                                                        src={previewUrl}
+                                                        alt="Courier Slip Preview"
+                                                        className="w-full h-full object-contain transition-transform duration-500 group-hover/preview:scale-[2.5] cursor-zoom-in origin-center"
+                                                        style={{ transformOrigin: 'center' }}
+                                                        onMouseMove={(e) => {
+                                                            const img = e.currentTarget;
+                                                            const rect = img.getBoundingClientRect();
+                                                            const x = ((e.clientX - rect.left) / rect.width) * 100;
+                                                            const y = ((e.clientY - rect.top) / rect.height) * 100;
+                                                            img.style.transformOrigin = `${x}% ${y}%`;
+                                                        }}
+                                                    />
+                                                    <div className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-xl text-[8px] font-black text-white uppercase tracking-widest opacity-0 group-hover/preview:opacity-100 transition-opacity pointer-events-none">
+                                                        Hover to Zoom
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                                                 disabled={isOcrLoading}
-                                                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-all shadow-md disabled:opacity-50"
+                                                className="w-full flex items-center justify-center gap-2 py-3 px-3 bg-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-all shadow-md disabled:opacity-50"
                                             >
                                                 {isOcrLoading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                                                {isOcrLoading ? "Scanning..." : "Upload Courier Slip"}
+                                                {isOcrLoading ? "Scanning Slip..." : "Upload Courier Slip"}
                                             </button>
+
+                                            {/* OCR SUGGESTIONS */}
+                                            {ocrCandidates.length > 0 && (
+                                                <div className="bg-white/40 border border-gray-900/10 p-4 rounded-2xl space-y-3 shadow-inner">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-[9px] font-black uppercase text-gray-900 tracking-widest flex items-center gap-2">
+                                                            <Check size={10} className="text-green-600" /> Detected AWB Numbers
+                                                        </p>
+                                                        <span className="text-[8px] font-bold text-gray-400">Click to assign</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {ocrCandidates.map(c => (
+                                                            <button
+                                                                key={c}
+                                                                onClick={() => {
+                                                                    onUpdate(data.id, 'tracking_id', c);
+                                                                    if (c.match(/^[0-9]{11}$/)) onUpdate(data.id, 'courier_company', 'BlueDart');
+                                                                    setOcrCandidates(prev => prev.filter(cand => cand !== c));
+                                                                }}
+                                                                className="px-3 py-2 bg-white border border-gray-900/10 rounded-xl text-[11px] font-black text-gray-900 hover:bg-[#d4de47] hover:border-gray-900/20 transition-all shadow-sm hover:scale-105"
+                                                            >
+                                                                {c}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
@@ -419,26 +472,6 @@ export default function DispatchCard({
                                         </div>
 
                                         <div className="h-px bg-gray-900/10 w-full mb-6"></div>
-
-                                        {ocrCandidates.length > 0 && (
-                                            <div className="bg-brand/10 border border-brand-hover p-3 rounded-xl space-y-2">
-                                                <p className="text-[9px] font-black uppercase text-gray-900 tracking-widest">Suggestions (Found {ocrCandidates.length})</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {ocrCandidates.map(c => (
-                                                        <button
-                                                            key={c}
-                                                            onClick={() => {
-                                                                onUpdate(data.id, 'tracking_id', c);
-                                                                setOcrCandidates([]);
-                                                            }}
-                                                            className="px-2 py-1 bg-white border border-gray-900/10 rounded-lg text-[10px] font-black text-gray-900 hover:bg-brand transition-colors"
-                                                        >
-                                                            {c}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
 
                                         <div className="space-y-4">
                                             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Client Communication</h4>
