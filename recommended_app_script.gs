@@ -427,10 +427,17 @@ function extractTrackingInfo(text) {
   var candidates = [];
   for (var k in candSet) { candidates.push(k); }
   candidates.sort(function(a, b) { return b.length - a.length; });
-  trackingId = candidates.length ? candidates[0] : null;
+  // 1. Look for explicit labels like "AWB No", "Docket", etc. near a candidate
+  var labelMatches = text.match(/(AWB|AIRWAY BILL|DOCKET|TRACKING|CONS\.? NO)\s*[:\.#-]*\s*([A-Z0-9\-]{6,})/i);
+  if (labelMatches && labelMatches[2]) {
+    trackingId = labelMatches[2].replace(/\s+/g, '');
+  }
 
+  // 2. Courier Detection
   var tUpper = text.toUpperCase();
   var known = [
+    { k: 'PROFESSIONAL', name: 'The Professional Couriers' },
+    { k: 'GGN', name: 'The Professional Couriers' }, // GGN is common for their Gurgaon branch
     { k: 'TRACKON', name: 'Trackon' },
     { k: 'BLUEDART', name: 'BlueDart' },
     { k: 'BLUE DART', name: 'BlueDart' },
@@ -439,8 +446,7 @@ function extractTrackingInfo(text) {
     { k: 'AMAZON', name: 'Amazon' },
     { k: 'XPRESSBEES', name: 'XpressBees' },
     { k: 'EKART', name: 'Ekart' },
-    { k: 'SHADOWFAX', name: 'Shadowfax' },
-    { k: 'PROFESSIONAL', name: 'The Professional Couriers' }
+    { k: 'SHADOWFAX', name: 'Shadowfax' }
   ];
 
   for (var n = 0; n < known.length; n++) {
@@ -1031,6 +1037,49 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
+    // --- STRATEGY 2: TABLE RECONSTRUCTION (For Columnar OCR) ---
+    // If we have few items, try to correlate numbered descriptions with number blocks
+    if (items.length < 2) {
+      var descriptions = [];
+      var dataBlocks = [];
+      
+      lines.forEach(function(L) {
+        var trimmed = L.trim();
+        if (!trimmed) return;
+        
+        // Find lines starting with numbers 1 to 50
+        var descMatch = trimmed.match(/^(\d+)\s+([A-Z].*)/i);
+        if (descMatch) {
+          descriptions.push({ idx: Number(descMatch[1]), text: descMatch[2] });
+        }
+        
+        // Find lines with multiple currency/amount-like numbers
+        var nums = trimmed.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g) || [];
+        if (nums.length >= 3) {
+          var cleanNums = nums.map(function(n) { return Number(n.replace(/,/g, '')); });
+          if (cleanNums.length >= 3 && cleanNums[0] > 100) { // Likely HSN or Price
+             dataBlocks.push(cleanNums);
+          }
+        }
+      });
+      
+      if (descriptions.length > 0 && dataBlocks.length > 0) {
+        // Pairs them up by order
+        for (var pi = 0; pi < Math.min(descriptions.length, dataBlocks.length); pi++) {
+          var block = dataBlocks[pi];
+          // Usually: HSN, Qty, Rate, Amount OR Qty, Rate, Amount
+          var qVal = (block.length === 4) ? block[1] : (block.length === 3 ? block[0] : 1);
+          var aVal = block[block.length - 1];
+          items.push({ 
+            desc: descriptions[pi].text, 
+            qty: qVal, 
+            amount: aVal, 
+            method: 'table_reconstruct' 
+          });
+        }
+      }
+    }
+
     // Deduplicate items
     var uniqueItems = [];
     var seen = {};
@@ -1042,7 +1091,7 @@ function api_parseInvoice(filename, dataUrl) {
        }
     });
 
-    return { ok: true, items: uniqueItems, text: text, ocr_method: 'vision_v1' };
+    return { ok: true, items: uniqueItems, text: text, ocr_method: 'vision_v2' };
   } catch (err) {
     return { ok: false, msg: String(err) };
   }
