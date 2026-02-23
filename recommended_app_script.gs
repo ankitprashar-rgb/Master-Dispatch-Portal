@@ -196,6 +196,8 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
   
+  var action = postData.action;
+
   if (action === 'ocr') {
     // Try DocAI first
     var res = api_parseInvoice_docai(postData.filename, postData.dataUrl);
@@ -955,16 +957,37 @@ function api_parseInvoice(filename, dataUrl) {
     var rowRe = /(.*?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:[.,]\d+)?)(?:\s+₹?\s*([\d,]+(?:\.\d+)?))?$/i;
 
     lines.forEach(function(L) {
+      if (!L.trim()) return;
       var m = L.match(rowRe);
       if (m) {
         var desc = m[1].trim();
         var qty = Number(m[2]);
         var amt = m[4] ? Number(m[4].replace(/,/g, '')) : (qty * Number(m[3].replace(/,/g, '')));
-        if (desc.length > 3) items.push({ desc: desc, qty: qty, amount: amt });
+        if (desc.length > 3) {
+          items.push({ desc: desc, qty: qty, amount: amt });
+          return;
+        }
+      }
+      
+      // Fallback heuristic for generic loose text
+      var words = L.trim().split(/\s+/);
+      if (words.length >= 3) {
+        var lastWord = words.pop().replace(/,/g, '').replace(/₹/g, '');
+        var secondLastWord = words.pop().replace(/,/g, '').replace(/₹/g, '');
+
+        var amtHeuristic = Number(lastWord);
+        var qtyOrRate = Number(secondLastWord);
+
+        if (!isNaN(amtHeuristic) && !isNaN(qtyOrRate) && words.length > 0) {
+          var descHeuristic = words.join(' ').trim();
+          if (descHeuristic.length > 3 && isNaN(Number(descHeuristic))) {
+            items.push({ desc: descHeuristic, qty: qtyOrRate, amount: amtHeuristic });
+          }
+        }
       }
     });
 
-    return { ok: true, items: items };
+    return { ok: true, items: items, text: text };
   } catch (err) {
     return { ok: false, msg: String(err) };
   }
