@@ -299,53 +299,6 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
                 </div>
             </div>
 
-            {/* Print Specific CSS */}
-            <style dangerouslySetInnerHTML={{
-                __html: `
-                @media print {
-                    /* Hide everything first */
-                    body * { visibility: hidden !important; }
-                    
-                    /* Only show print-area and all its children */
-                    .print-area,
-                    .print-area * { visibility: visible !important; }
-
-                    /* No-print elements are fully hidden */
-                    .no-print { display: none !important; }
-
-                    /* Position the print area to fill the page */
-                    .print-area {
-                        position: absolute !important;
-                        top: 0 !important;
-                        left: 0 !important;
-                        width: 100% !important;
-                        background: white !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                    }
-                    
-                    /* Clean up page container */
-                    .page-container {
-                        width: 100% !important;
-                        min-height: auto !important;
-                        box-shadow: none !important;
-                        border-radius: 0 !important;
-                        padding: 10mm !important;
-                    }
-
-                    @page {
-                        size: A4;
-                        margin: 0;
-                    }
-
-                    /* Preserve colors and backgrounds */
-                    * {
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        color-adjust: exact !important;
-                    }
-                }
-            `}} />
         </div>
     );
 }
