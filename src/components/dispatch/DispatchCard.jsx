@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronRight, MapPin, Truck, FileText, Upload, ExternalLink, Mail, X, Save, Edit2, Trash2, Printer, Archive, Loader2, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../../lib/utils';
@@ -20,7 +20,17 @@ export default function DispatchCard({
     const [isEmailSuccess, setIsEmailSuccess] = useState(false);
     const [email, setEmail] = useState(data.client_email || data.dispatch_data?.clientEmail || '');
     const [previewUrl, setPreviewUrl] = useState(data.courier_slip_url || '');
+    const [localAwb, setLocalAwb] = useState(data.tracking_id || '');
+    const [localCourier, setLocalCourier] = useState(data.courier_company || '');
     const fileInputRef = useRef(null);
+
+    useEffect(() => {
+        setLocalAwb(data.tracking_id || '');
+    }, [data.tracking_id]);
+
+    useEffect(() => {
+        setLocalCourier(data.courier_company || '');
+    }, [data.courier_company]);
 
     // Status Logic
     const isSent = !!data.email_sent_at;
@@ -397,41 +407,16 @@ export default function DispatchCard({
                                                 {isOcrLoading ? "Scanning Slip..." : "Upload Courier Slip"}
                                             </button>
 
-                                            {/* OCR SUGGESTIONS */}
-                                            {ocrCandidates.length > 0 && (
-                                                <div className="bg-white/40 border border-gray-900/10 p-4 rounded-2xl space-y-3 shadow-inner">
-                                                    <div className="flex items-center justify-between">
-                                                        <p className="text-[9px] font-black uppercase text-gray-900 tracking-widest flex items-center gap-2">
-                                                            <Check size={10} className="text-green-600" /> Detected AWB Numbers
-                                                        </p>
-                                                        <span className="text-[8px] font-bold text-gray-400">Click to assign</span>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {ocrCandidates.map(c => (
-                                                            <button
-                                                                key={c}
-                                                                onClick={() => {
-                                                                    onUpdate(data.id, 'tracking_id', c);
-                                                                    if (c.match(/^[0-9]{11}$/)) onUpdate(data.id, 'courier_company', 'BlueDart');
-                                                                    setOcrCandidates(prev => prev.filter(cand => cand !== c));
-                                                                }}
-                                                                className="px-3 py-2 bg-white border border-gray-900/10 rounded-xl text-[11px] font-black text-gray-900 hover:bg-[#d4de47] hover:border-gray-900/20 transition-all shadow-sm hover:scale-105"
-                                                            >
-                                                                {c}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
+                                            {/* CELLS FOR AWB AND COURIER (ALWAYS BELOW UPLOAD) */}
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
                                                     <label className="text-[9px] font-black uppercase text-gray-900 tracking-widest">AWB Number</label>
                                                     <div className="group relative">
                                                         <textarea
                                                             rows={2}
-                                                            defaultValue={data.tracking_id || ''}
-                                                            onBlur={(e) => onUpdate(data.id, 'tracking_id', e.target.value)}
+                                                            value={localAwb}
+                                                            onChange={(e) => setLocalAwb(e.target.value)}
+                                                            onBlur={() => onUpdate(data.id, 'tracking_id', localAwb)}
                                                             className="w-full bg-white/50 border border-gray-900/10 rounded-xl px-4 py-3 text-sm font-black text-gray-900 focus:bg-white outline-none transition-all placeholder:text-gray-400 resize-none break-all"
                                                             placeholder="Enter Tracking ID"
                                                         />
@@ -442,13 +427,53 @@ export default function DispatchCard({
                                                     <label className="text-[9px] font-black uppercase text-gray-900 tracking-widest">Courier Partner</label>
                                                     <textarea
                                                         rows={2}
-                                                        defaultValue={data.courier_company || ''}
-                                                        onBlur={(e) => onUpdate(data.id, 'courier_company', e.target.value)}
+                                                        value={localCourier}
+                                                        onChange={(e) => setLocalCourier(e.target.value)}
+                                                        onBlur={() => onUpdate(data.id, 'courier_company', localCourier)}
                                                         className="w-full bg-white/50 border border-gray-900/10 rounded-xl px-4 py-3 text-sm font-black text-gray-900 focus:bg-white outline-none transition-all placeholder:text-gray-400 resize-none"
                                                         placeholder="e.g. BlueDart"
                                                     />
                                                 </div>
                                             </div>
+
+                                            {/* OCR SUGGESTIONS (BELOW CELLS) */}
+                                            {ocrCandidates.length > 0 && (
+                                                <div className="bg-white/40 border border-black/5 p-4 rounded-2xl space-y-3 shadow-inner">
+                                                    <div className="flex items-center justify-between">
+                                                        <p className="text-[9px] font-black uppercase text-gray-900 tracking-widest flex items-center gap-2">
+                                                            <Check size={10} className="text-green-600" /> Detected Text
+                                                        </p>
+                                                        <span className="text-[8px] font-bold text-gray-400">Assign to field</span>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        {ocrCandidates.slice(0, 8).map(c => (
+                                                            <div key={c} className="flex items-center gap-2 bg-white/60 p-2 pl-3 rounded-xl border border-black/5 shadow-sm group/cand">
+                                                                <span className="flex-1 text-[11px] font-black text-gray-900 truncate">{c}</span>
+                                                                <div className="flex gap-1 opacity-100 sm:opacity-40 group-hover/cand:opacity-100 transition-opacity">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            onUpdate(data.id, 'tracking_id', c);
+                                                                            setOcrCandidates(prev => prev.filter(cand => cand !== c));
+                                                                        }}
+                                                                        className="px-2 py-1 bg-gray-900 text-white text-[8px] font-black uppercase rounded-lg hover:bg-gray-800 transition-colors shadow-sm"
+                                                                    >
+                                                                        AWB
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            onUpdate(data.id, 'courier_company', c);
+                                                                            setOcrCandidates(prev => prev.filter(cand => cand !== c));
+                                                                        }}
+                                                                        className="px-2 py-1 bg-[#d4de47] text-gray-900 text-[8px] font-black uppercase rounded-lg hover:bg-[#c2cc3e] transition-colors border border-gray-900/10 shadow-sm"
+                                                                    >
+                                                                        Courier
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="space-y-2">
                                                 <label className="text-[9px] font-black uppercase text-gray-900 tracking-widest">Courier Slip Link</label>
