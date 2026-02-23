@@ -202,11 +202,11 @@ function doPost(e) {
     // Try DocAI first
     var res = api_parseInvoice_docai(postData.filename, postData.dataUrl);
     
-    // Fallback to Vision if DocAI failed OR returned 0 items
-    if (!res.ok || (!res.items || res.items.length === 0)) {
+    // Fallback to Vision if DocAI failed OR returned fewer than 2 items (often noise)
+    if (!res.ok || (!res.items || res.items.length < 2)) {
        var visionRes = api_parseInvoice(postData.filename, postData.dataUrl);
-       // If vision found items, or if DocAI failed completely, use vision result
-       if ((visionRes.items && visionRes.items.length > 0) || !res.ok) {
+       // If vision found more items, or if DocAI failed completely, use vision result
+       if ((visionRes.items && visionRes.items.length > (res.items ? res.items.length : 0)) || !res.ok) {
          res = visionRes;
        }
     }
@@ -1037,73 +1037,93 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
-    // --- STRATEGY 2: RECONSTRUCTION (For Grouped/Clumped OCR) ---
-    if (items.length < 2) {
-      var descriptions = [];
-      var dataBlocks = [];
+    // --- UNIVERSAL RECONSTRUCTION (Strategy 2) ---
+    var descriptions = [];
+    var dataBlocks = [];
+    
+    lines.forEach(function(L) {
+      var trimmed = L.trim();
+      if (!trimmed) return;
       
-      lines.forEach(function(L) {
-        var trimmed = L.trim();
-        if (!trimmed) return;
-        
-        // A. Extract Numbered Descriptions (e.g., "1 Rear Windshield...")
-        var descMatch = trimmed.match(/^(\d{1,2})\s+([A-Z].{10,})/i); 
-        if (descMatch) {
-          descriptions.push(descMatch[2].trim());
+      // A. Extract Descriptions (looking for "1 " or "1. " or "01 ")
+      var descMatch = trimmed.match(/^(\d{1,2})[\s\.\)-]+\s*([A-Z0-9].{6,})/i); 
+      if (descMatch) {
+        var dText = descMatch[2].trim();
+        // Skip common junk headers
+        if (!/^(Item|Description|HSN|Qty|Rate|Amount|Invoice|Date|Name|Address)/i.test(dText)) {
+          descriptions.push(dText);
           return; 
         }
+      }
 
-        // B. Extract Clumped Data Blocks (e.g., "998391 300 40 12000 998391 1 2130 2130")
-        // We look for patterns of 3 or 4 numbers in a row
-        var nums = trimmed.match(/(\d{1,7}(?:,\d{3})*(?:\.\d{2})?)/g) || [];
-        if (nums.length >= 3) {
-           var nVals = nums.map(function(n){ return Number(n.replace(/,/g, '')); });
-           // Sliding window: if we see blocks of 4 starting with a 6-digit HSN (998x)
-           for (var k = 0; k < nVals.length; k++) {
-              var val = nVals[k];
-              // If it looks like an HSN (6 digits) and there are 3 numbers after it
-              if (val >= 990000 && val <= 999999 && (k + 3) < nVals.length) {
-                 dataBlocks.push({ qty: nVals[k+1], rate: nVals[k+2], amt: nVals[k+3] });
-                 k += 3; // jump
-              } 
-              // Fallback: groups of 3 (Qty, Rate, Amount) if they are valid numbers
-              else if (val > 0 && val < 5000 && (k + 2) < nVals.length) {
-                 var next1 = nVals[k+1];
-                 var next2 = nVals[k+2];
-                 // If Row Total check passes roughly (Qty * Rate = Amount)
-                 if (Math.abs((val * next1) - next2) < 5) {
-                    dataBlocks.push({ qty: val, rate: next1, amt: next2 });
-                    k += 2;
-                 }
-              }
-           }
-        }
-      });
-      
-      if (descriptions.length > 0 && dataBlocks.length > 0) {
-        for (var pi = 0; pi < Math.min(descriptions.length, dataBlocks.length); pi++) {
-          items.push({ 
-            desc: descriptions[pi], 
-            qty: dataBlocks[pi].qty, 
-            amount: dataBlocks[pi].amt, 
-            method: 'clumped_reconstruct' 
-          });
-        }
+      // B. Extract Clumped Numbers (Sliding Window)
+      // Supports numbers like 1,000 or 1000.00 or 1000
+      var nums = trimmed.match(/(\d{1,8}(?:,\d{3})*(?:\.\d{2})?)/g) || [];
+      if (nums.length >= 3) {
+         var nVals = nums.map(function(n){ return Number(n.replace(/,/g, '')); });
+         for (var k = 0; k < nVals.length; k++) {
+            var val = nVals[k];
+            // Match HSN/Code (4-8 digits) + 3 numbers (Qty, Rate, Amt)
+            if (val >= 1000 && val <= 99999999 && (k + 3) < nVals.length) {
+               var q = nVals[k+1];
+               var r = nVals[k+2];
+               var a = nVals[k+3];
+               // Optional: Validate Row
+               if (q > 0 && r > 0 && Math.abs((q * r) - a) < 10) {
+                  dataBlocks.push({ qty: q, rate: r, amt: a });
+                  k += 3;
+               }
+            } 
+            // Fallback: 3 numbers directly (Qty, Rate, Amt)
+            else if (val > 0 && val < 50000 && (k + 2) < nVals.length) {
+               var r2 = nVals[k+1];
+               var a2 = nVals[k+2];
+               if (Math.abs((val * r2) - a2) < 5) {
+                  dataBlocks.push({ qty: val, rate: r2, amt: a2 });
+                  k += 2;
+               }
+            }
+         }
+      }
+    });
+
+    if (descriptions.length > 0 && dataBlocks.length > 0) {
+      var tableItems = [];
+      // If we have more data blocks than descriptions, maybe some descriptions were multi-line
+      // or we missed some. We match them in order.
+      for (var pi = 0; pi < Math.min(descriptions.length, dataBlocks.length); pi++) {
+        tableItems.push({ 
+          desc: descriptions[pi], 
+          qty: dataBlocks[pi].qty, 
+          amount: dataBlocks[pi].amt, 
+          method: 'universal_reconstruct_v4' 
+        });
+      }
+      // If reconstruction found more items than traditional, use it instead
+      if (tableItems.length >= items.length) {
+        items = tableItems;
       }
     }
 
-    // Deduplicate items
+    // Deduplicate and filter junk
     var uniqueItems = [];
     var seen = {};
     items.forEach(function(it) {
-       var key = (it.desc + '|' + it.amount).toLowerCase();
-       if (!seen[key]) {
+       var dClean = it.desc.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+       var key = dClean + '|' + it.amount;
+       if (!seen[key] && it.desc.length > 3) {
          uniqueItems.push(it);
          seen[key] = true;
        }
     });
 
-    return { ok: true, items: uniqueItems, text: text, ocr_method: 'vision_v3' };
+    return { 
+      ok: true, 
+      items: uniqueItems, 
+      text: text, 
+      debug: { descCount: descriptions.length, dataCount: dataBlocks.length },
+      ocr_method: 'vision_v4' 
+    };
   } catch (err) {
     return { ok: false, msg: String(err) };
   }
