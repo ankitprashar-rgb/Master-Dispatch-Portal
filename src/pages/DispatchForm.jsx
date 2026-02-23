@@ -205,10 +205,10 @@ export default function DispatchForm() {
                         pendingQty: 0
                     }));
                     setItems(mappedItems);
-                    setOcrStatus('OCR Successful!');
+                    setOcrStatus(`OCR Successful! (${result.ocr_method || 'v6'})`);
                 } else if (result.text) {
-                    setOcrStatus('OCR Done (no items found)');
-                    // Show raw text in console for debugging "no items found" cases
+                    const snippet = result.text.substring(0, 30).replace(/\n/g, ' ') + '...';
+                    setOcrStatus(`OCR Done (No items found in: ${snippet})`);
                     console.log("Raw OCR Text:", result.text);
                 } else {
                     setOcrStatus('OCR completed with no specific results');
