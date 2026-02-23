@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Plus, Trash2, Printer, Search, Loader2, FileDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
-import { PDFDownloadLink } from '@react-pdf/renderer';
-import DispatchPDF from '../components/dispatch/DispatchPDF';
+import DispatchPreview from '../components/dispatch/DispatchPreview';
 
 export default function DispatchForm() {
     const [items, setItems] = useState([{ id: Date.now(), desc: '', qty: '', amount: '', masterQty: 0, dispatchedSoFar: 0 }]);
@@ -19,6 +18,7 @@ export default function DispatchForm() {
     const [isOcrRunning, setIsOcrRunning] = useState(false);
     const [ocrStatus, setOcrStatus] = useState('');
     const fileInputRef = useRef(null);
+    const [showPreview, setShowPreview] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -640,19 +640,31 @@ export default function DispatchForm() {
                     {isSaving ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
                     {isSaving ? 'Saving...' : 'Save Dispatch'}
                 </button>
-                <PDFDownloadLink
-                    document={<DispatchPDF data={{ ...formData, items, totals }} />}
-                    fileName={`Dispatch-${formData.clientName}-${formData.date}.pdf`}
+                <button
+                    onClick={() => setShowPreview(true)}
                     className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-gray-900 text-white border border-transparent text-xs font-bold hover:bg-gray-800 shadow-lg w-full sm:w-auto"
                 >
-                    {({ loading }) => (
-                        <>
-                            {loading ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
-                            {loading ? 'Generating...' : 'Generate Dispatch PDF'}
-                        </>
-                    )}
-                </PDFDownloadLink>
+                    <Printer size={16} />
+                    Generate Dispatch PDF
+                </button>
             </div>
+
+            {showPreview && (
+                <DispatchPreview
+                    data={{
+                        dispatch_id: formData.dispatchId || 'DRAFT',
+                        date: formData.date || new Date().toISOString().split('T')[0],
+                        client_name: formData.clientName,
+                        project_name: formData.projectName,
+                        ship_to_address: formData.shipToAddress,
+                        ship_to_poc: formData.shipToPoc,
+                        ship_to_phone: formData.shipToPhone,
+                        ship_to_email: formData.shipToEmail,
+                        items,
+                    }}
+                    onClose={() => setShowPreview(false)}
+                />
+            )}
         </div>
     );
 }

@@ -262,18 +262,28 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
             <style dangerouslySetInnerHTML={{
                 __html: `
                 @media print {
-                    body { margin: 0; padding: 0; }
+                    /* Hide everything first */
+                    body * { visibility: hidden !important; }
+                    
+                    /* Only show print-area and all its children */
+                    .print-area,
+                    .print-area * { visibility: visible !important; }
+
+                    /* No-print elements are fully hidden */
                     .no-print { display: none !important; }
+
+                    /* Position the print area to fill the page */
                     .print-area {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: auto;
-                        overflow: visible;
-                        background: white;
-                        z-index: 9999;
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 100% !important;
+                        background: white !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
                     }
+                    
+                    /* Clean up page container */
                     .page-container {
                         width: 100% !important;
                         min-height: auto !important;
@@ -281,10 +291,13 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
                         border-radius: 0 !important;
                         padding: 10mm !important;
                     }
+
                     @page {
                         size: A4;
                         margin: 0;
                     }
+
+                    /* Preserve colors and backgrounds */
                     * {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
