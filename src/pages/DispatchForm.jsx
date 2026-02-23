@@ -181,9 +181,11 @@ export default function DispatchForm() {
 
             const res = await fetch(apiUrl, {
                 method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify({ action: 'ocr', filename, dataUrl })
             });
             const result = await res.json();
+            console.log("OCR Result:", result); // Debugging log
 
             if (result.status === 'success' || result.ok) {
                 // If it's the sophisticated DocAI parser from appscript.txt
@@ -206,6 +208,8 @@ export default function DispatchForm() {
                     setOcrStatus('OCR Successful!');
                 } else if (result.text) {
                     setOcrStatus('OCR Done (no items found)');
+                    // Show raw text in console for debugging "no items found" cases
+                    console.log("Raw OCR Text:", result.text);
                 } else {
                     setOcrStatus('OCR completed with no specific results');
                 }

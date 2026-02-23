@@ -231,6 +231,7 @@ function doPost(e) {
     if (res.ok) {
       res.status = 'success';
       res.ok = true;
+      res.ocr_method = res.ocr_method || 'vision_v1';
     }
 
     return ContentService.createTextOutput(JSON.stringify(res))
@@ -997,14 +998,18 @@ function api_parseInvoice(filename, dataUrl) {
     lines.forEach(function(L) {
       if (!L.trim()) return;
       
+    lines.forEach(function(L) {
+      if (!L.trim()) return;
+      var clean = L.replace(/[₹,]/g, '').trim();
+      
       // 1. Try strict Regex first
       var m = L.match(rowRe);
       if (m) {
         var desc = m[1].trim();
         var qty = Number(m[2]);
         var amt = m[4] ? Number(m[4].replace(/,/g, '')) : (qty * Number(m[3].replace(/,/g, '')));
-        if (desc.length > 3 && isNaN(Number(desc))) {
-          items.push({ desc: desc, qty: qty, amount: amt });
+        if (desc.length > 2 && isNaN(Number(desc))) {
+          items.push({ desc: desc, qty: qty, amount: amt, method: 'regex' });
           return;
         }
       }
@@ -1016,15 +1021,13 @@ function api_parseInvoice(filename, dataUrl) {
          var d2 = matchAmount[1].trim();
          var q2 = Number(matchAmount[2]);
          var a2 = Number(String(matchAmount[3]).replace(/,/g, ''));
-         if (d2.length > 3 && isNaN(Number(d2))) {
-           items.push({ desc: d2, qty: q2, amount: a2 });
+         if (d2.length > 2 && isNaN(Number(d2))) {
+           items.push({ desc: d2, qty: q2, amount: a2, method: 'legacy_amt' });
            return;
          }
       }
       
-      // 2. ULTRA-ROBUST CATCH-ALL HEURISTIC
-      // If a line ends with a number, we assume it's a line item
-      var clean = L.replace(/[₹,]/g, '').trim();
+      // 2. Greedy Heuristic
       var parts = clean.split(/\s+/);
       if (parts.length >= 2) {
         var last = Number(parts[parts.length - 1]);
@@ -1034,16 +1037,42 @@ function api_parseInvoice(filename, dataUrl) {
           var sliceIdx = (!isNaN(prev) && prev > 0 && prev < 10000) ? -2 : -1;
           var d = parts.slice(0, sliceIdx).join(' ').trim();
           var lowerD = d.toLowerCase();
-          var junk = ['total', 'subtotal', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'invoice', 'date', 'phone', 'mobile'];
+          var junk = ['total', 'subtotal', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile'];
           var isJunk = junk.some(function(j) { return lowerD.indexOf(j) !== -1; });
           if (d.length > 2 && !isJunk && isNaN(Number(d))) {
-             items.push({ desc: d, qty: q, amount: last });
+             items.push({ desc: d, qty: q, amount: last, method: 'greedy' });
+             return;
           }
+        }
+      }
+
+      // 3. Price-First Search (Look for any number > 100 and a word before it)
+      for (var i = parts.length - 1; i >= 1; i--) {
+        var val = Number(parts[i]);
+        if (!isNaN(val) && val > 10) {
+           var descParts = parts.slice(0, i);
+           var descStr = descParts.join(' ').trim();
+           var isJunk2 = ['tax', 'gst', 'vat', 'total', 'discount', 'invoice', 'date'].some(function(j){ return descStr.toLowerCase().indexOf(j) !== -1; });
+           if (descStr.length > 3 && !isJunk2 && isNaN(Number(descStr))) {
+              items.push({ desc: descStr, qty: 1, amount: val, method: 'price_first' });
+              break; 
+           }
         }
       }
     });
 
-    return { ok: true, items: items, text: text };
+    // Deduplicate items based on description and amount to avoid overlapping heuristic hits
+    var uniqueItems = [];
+    var seen = {};
+    items.forEach(function(it) {
+       var key = (it.desc + '|' + it.amount).toLowerCase();
+       if (!seen[key]) {
+         uniqueItems.push(it);
+         seen[key] = true;
+       }
+    });
+
+    return { ok: true, items: uniqueItems, text: text, ocr_method: 'vision_v1' };
   } catch (err) {
     return { ok: false, msg: String(err) };
   }
