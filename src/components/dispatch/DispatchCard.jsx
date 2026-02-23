@@ -14,6 +14,38 @@ export default function DispatchCard({
     const [isOpen, setIsOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [ocrCandidates, setOcrCandidates] = useState([]);
+    const [isOcrLoading, setIsOcrLoading] = useState(false);
+    const [isOcrSuccess, setIsOcrSuccess] = useState(false);
+    const [isEmailLoading, setIsEmailLoading] = useState(false);
+    const [isEmailSuccess, setIsEmailSuccess] = useState(false);
+    const [email, setEmail] = useState(data.client_email || data.dispatch_data?.clientEmail || '');
+    const fileInputRef = useRef(null);
+
+    // Status Logic
+    const isSent = !!data.email_sent_at;
+    const isArchived = !!data.is_archived;
+    const hasTrackingInfo = !!(data.tracking_id || data.courier_company || data.courier_slip_url || data.dispatch_data?.trackingId || data.dispatch_data?.courierCompany || data.dispatch_data?.courierSlipUrl);
+    const isProcessed = !isSent && hasTrackingInfo;
+    const isPending = !isSent && !isProcessed;
+
+    // Unified Items Logic (Prefer relational items, fallback to JSONB)
+    const items = (data.dispatch_items && data.dispatch_items.length > 0)
+        ? data.dispatch_items.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, masterQty: i.master_qty }))
+        : (data.dispatch_data?.items?.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty })) || []);
+    const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+    const totalAmount = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+
+    const handleEmailUpdate = (e) => {
+        setEmail(e.target.value);
+    };
+
+    const handleSaveEmail = () => {
+        onUpdate(data.id, 'client_email', email);
+    };
+
+    const handleArchive = () => {
+        onUpdate(data.id, 'is_archived', !isArchived);
+    };
 
     const handleOcrUpload = async (e) => {
         const file = e.target.files[0];
