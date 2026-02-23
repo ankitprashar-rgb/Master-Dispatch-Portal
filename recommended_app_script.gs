@@ -1119,8 +1119,8 @@ function api_parseInvoice(filename, dataUrl) {
       ok: true, 
       items: uniqueItems, 
       text: text, 
-      debug: { descCount: descriptions.length, dataCount: dataBlocks.length },
-      ocr_method: 'vision_v4' 
+      debug: { descCount: allPotentialDescriptions.length, dataCount: foundData.length },
+      ocr_method: uniqueItems.length > 0 ? (uniqueItems[0].method || 'vision_v6') : 'vision_v6'
     };
   } catch (err) {
     return { ok: false, msg: String(err) };
