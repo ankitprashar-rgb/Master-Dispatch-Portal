@@ -1036,18 +1036,18 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
-    // --- STRATEGY 6: ABSOLUTE OCR ROBUSTNESS (Document-Wide Sweep) ---
+    // --- STRATEGY 7: PRECISION OCR (Document-Wide Sweep) ---
     var allPotentialDescriptions = [];
     var allNumbers = [];
-    var junkWords = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'invoice', 'date', 'hsn', 'qty', 'rate', 'amount', 'code', 'sac', 'bank', 'ifsc', 'account', 'pan', 'state', 'pincode', 'address', 'name', 'client', 'consignee', 'bill'];
+    var junkWords = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'invoice', 'date', 'hsn', 'qty', 'rate', 'amount', 'code', 'sac', 'bank', 'ifsc', 'account', 'pan', 'state', 'pincode', 'address', 'name', 'client', 'consignee', 'bill', 'proforma', 'quotation', 'estimate'];
 
-    // Part A: Collect all potential descriptions and ALL numbers from the whole doc
+    // Part A: Collect all potential descriptions and ALL numbers
     lines.forEach(function(L) {
       var trimmed = L.trim();
       if (!trimmed || trimmed.length < 3) return;
       
-      // 1. Collect Numbers (Flattened)
-      var matches = trimmed.match(/(\d{1,8}(?:,\d{3})*(?:\.\d{2})?)/g) || [];
+      // 1. Collect Numbers (Flattened) - Supports 1,88,000 and 1000.00
+      var matches = trimmed.match(/(\d[\d,]*\.?\d+)/g) || [];
       matches.forEach(function(m) {
         var n = Number(m.replace(/,/g, ''));
         if (!isNaN(n) && n > 0) allNumbers.push(n);
@@ -1059,6 +1059,9 @@ function api_parseInvoice(filename, dataUrl) {
       var isJunk = junkWords.some(function(j) { return lowerL.indexOf(j) !== -1 && lowerL.length < (j.length + 5); });
       
       if (!hasManyNums && !isJunk && trimmed.length > 5) {
+        // Skip Noise like "1 Chennai" or "02 Delhi" which break alignment
+        if (/^(\d{1,2})\s+[A-Z][a-z]+$/.test(trimmed)) return;
+
         var cleaned = trimmed.replace(/^(\d{1,2})[\s\.\)-]+\s*/, '').trim();
         if (cleaned.length > 4) allPotentialDescriptions.push(cleaned);
       }
@@ -1072,17 +1075,17 @@ function api_parseInvoice(filename, dataUrl) {
       // Scenario 1: HSN + Qty + Rate + Amt (4 sequence)
       if (val >= 1000 && val <= 99999999 && (k + 3) < allNumbers.length) {
         var q1 = allNumbers[k+1], r1 = allNumbers[k+2], a1 = allNumbers[k+3];
-        if (q1 > 0 && r1 > 0 && Math.abs((q1 * r1) - a1) < (a1 * 0.1 + 10)) {
-          foundData.push({ qty: q1, rate: r1, amt: a1 });
+        if (q1 > 0 && r1 > 0 && Math.abs((q1 * r1) - a1) < (a1 * 0.12 + 20)) {
+          foundData.push({ qty: q1, rate: r1, amt: a1, method: 'v7_hsn' });
           k += 3; continue;
         }
       }
       
       // Scenario 2: Qty + Rate + Amt (3 sequence)
-      if (val > 0 && (k + 2) < allNumbers.length) {
+      if (val > 0 && val < 50000 && (k + 2) < allNumbers.length) {
         var r2 = allNumbers[k+1], a2 = allNumbers[k+2];
-        if (val < 10000 && r2 > 0 && Math.abs((val * r2) - a2) < (a2 * 0.1 + 10)) {
-          foundData.push({ qty: val, rate: r2, amt: a2 });
+        if (r2 > 0 && Math.abs((val * r2) - a2) < (a2 * 0.12 + 20)) {
+          foundData.push({ qty: val, rate: r2, amt: a2, method: 'v7_standard' });
           k += 2; continue;
         }
       }
@@ -1097,7 +1100,7 @@ function api_parseInvoice(filename, dataUrl) {
           desc: allPotentialDescriptions[pi], 
           qty: foundData[pi].qty, 
           amount: foundData[pi].amt, 
-          method: 'abs_reconstruct_v6' 
+          method: foundData[pi].method || 'abs_reconstruct_v7' 
         });
       }
       if (tableItems.length >= items.length) items = tableItems;
@@ -1120,7 +1123,7 @@ function api_parseInvoice(filename, dataUrl) {
       items: uniqueItems, 
       text: text, 
       debug: { descCount: allPotentialDescriptions.length, dataCount: foundData.length },
-      ocr_method: uniqueItems.length > 0 ? (uniqueItems[0].method || 'vision_v6') : 'vision_v6'
+      ocr_method: uniqueItems.length > 0 ? (uniqueItems[0].method || 'vision_v7') : 'vision_v7'
     };
   } catch (err) {
     return { ok: false, msg: String(err) };
