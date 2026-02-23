@@ -201,18 +201,34 @@ function doPost(e) {
   if (action === 'ocr') {
     // Try DocAI first
     var res = api_parseInvoice_docai(postData.filename, postData.dataUrl);
-    if (!res.ok) {
-      // Fallback to Vision
-      res = api_parseInvoice(postData.filename, postData.dataUrl);
+    
+    // Fallback to Vision if DocAI failed OR returned 0 items
+    if (!res.ok || (!res.items || res.items.length === 0)) {
+       var visionRes = api_parseInvoice(postData.filename, postData.dataUrl);
+       // If vision found items, or if DocAI failed completely, use vision result
+       if ((visionRes.items && visionRes.items.length > 0) || !res.ok) {
+         res = visionRes;
+       }
     }
-    // If still failing, try the original handleOCR for tracking info
-    if (!res.ok || (res.items && res.items.length === 0)) {
-        var legacyRes = handleOCR(postData);
-        if (legacyRes.status === 'success') {
-            return ContentService.createTextOutput(JSON.stringify({ ok: true, ...legacyRes }))
-              .setMimeType(ContentService.MimeType.JSON);
-        }
+    
+    // Final fallback to Drive OCR for tough images/PDFs
+    if (!res.ok || (!res.items?.length && !res.text)) {
+      var legacyRes = handleOCR(postData);
+      if (legacyRes.status === 'success') {
+        res = { ok: true, ...legacyRes };
+      }
     }
+
+    // Extraction heuristic for Tracking IDs
+    if (res.ok && res.text) {
+      var info = extractTrackingInfo(res.text);
+      res.detectedTrackingId = info.trackingId;
+      res.detectedCourier = info.courier;
+    }
+
+    // ALWAYS return success status if we got this far
+    if (res.ok) res.status = 'success';
+
     return ContentService.createTextOutput(JSON.stringify(res))
       .setMimeType(ContentService.MimeType.JSON);
   }
@@ -921,7 +937,8 @@ function api_parseInvoice_docai(filename, dataUrl) {
       });
     }
 
-    return { ok: true, items: items };
+    var fullText = doc.text || '';
+    return { ok: true, items: items, text: fullText };
   } catch (err) {
     return { ok: false, msg: String(err) };
   }
@@ -950,38 +967,50 @@ function api_parseInvoice(filename, dataUrl) {
     });
     var json = JSON.parse(res.getContentText());
     var text = json.responses[0]?.fullTextAnnotation?.text || '';
-    if (!text) return { ok: true, items: [] };
+    if (!text) return { ok: true, items: [], text: '' };
 
     var lines = text.split('\n');
     var items = [];
+    
+    // Exact Regex for clean invoices
     var rowRe = /(.*?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:[.,]\d+)?)(?:\s+₹?\s*([\d,]+(?:\.\d+)?))?$/i;
 
     lines.forEach(function(L) {
       if (!L.trim()) return;
+      
+      // 1. Try strict Regex first
       var m = L.match(rowRe);
       if (m) {
         var desc = m[1].trim();
         var qty = Number(m[2]);
         var amt = m[4] ? Number(m[4].replace(/,/g, '')) : (qty * Number(m[3].replace(/,/g, '')));
-        if (desc.length > 3) {
+        if (desc.length > 3 && isNaN(Number(desc))) {
           items.push({ desc: desc, qty: qty, amount: amt });
           return;
         }
       }
       
-      // Fallback heuristic for generic loose text
-      var words = L.trim().split(/\s+/);
-      if (words.length >= 3) {
-        var lastWord = words.pop().replace(/,/g, '').replace(/₹/g, '');
-        var secondLastWord = words.pop().replace(/,/g, '').replace(/₹/g, '');
-
-        var amtHeuristic = Number(lastWord);
-        var qtyOrRate = Number(secondLastWord);
-
-        if (!isNaN(amtHeuristic) && !isNaN(qtyOrRate) && words.length > 0) {
-          var descHeuristic = words.join(' ').trim();
-          if (descHeuristic.length > 3 && isNaN(Number(descHeuristic))) {
-            items.push({ desc: descHeuristic, qty: qtyOrRate, amount: amtHeuristic });
+      // 2. ULTRA-ROBUST CATCH-ALL HEURISTIC
+      // If a line ends with a number, we assume it's a line item
+      var clean = L.replace(/[₹,]/g, '').trim();
+      var parts = clean.split(/\s+/);
+      if (parts.length >= 2) {
+        var last = Number(parts[parts.length - 1]);
+        if (!isNaN(last) && last > 0 && last < 10000000) { // sanity check
+          var prev = Number(parts[parts.length - 2]);
+          var q = (!isNaN(prev) && prev > 0 && prev < 10000) ? prev : 1;
+          
+          // The description is everything before the numbers
+          var sliceIdx = (!isNaN(prev) && prev > 0 && prev < 10000) ? -2 : -1;
+          var d = parts.slice(0, sliceIdx).join(' ').trim();
+          
+          // Filter out obvious junk/headers
+          var lowerD = d.toLowerCase();
+          var junk = ['total', 'subtotal', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'invoice', 'date', 'phone', 'mobile'];
+          var isJunk = junk.some(function(j) { return lowerD.indexOf(j) !== -1; });
+          
+          if (d.length > 2 && !isJunk && isNaN(Number(d))) {
+             items.push({ desc: d, qty: q, amount: last });
           }
         }
       }

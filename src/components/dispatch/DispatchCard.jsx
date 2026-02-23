@@ -61,6 +61,8 @@ export default function DispatchCard({
 
             // Call Google Apps Script OCR if key is present, else mock
             const apiUrl = import.meta.env.VITE_GOOGLE_CLIENTS_API_URL;
+            console.log("Attempting OCR fetch to:", apiUrl);
+            
             if (apiUrl) {
                 try {
                     // Send to Apps Script for actual OCR processing
@@ -68,7 +70,7 @@ export default function DispatchCard({
                     const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'text/plain;charset=utf-8',
+                            'Content-Type': 'text/plain',
                         },
                         body: JSON.stringify({
                             action: 'ocr',
