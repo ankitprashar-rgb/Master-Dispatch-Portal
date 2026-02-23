@@ -1037,50 +1037,65 @@ function api_parseInvoice(filename, dataUrl) {
       }
     });
 
-    // --- UNIVERSAL RECONSTRUCTION (Strategy 2) ---
+    // --- SMART TABLE RECONSTRUCTION (Strategy 5) ---
     var descriptions = [];
     var dataBlocks = [];
     
+    // Common junk words that indicate a line is NOT a product description
+    var junkWords = ['total', 'subtotal', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'invoice', 'date', 'hsn', 'qty', 'rate', 'amount', 'price', 'description', 'particulars', 'code', 'sac', 'bank', 'ifsc', 'account', 'pan', 'state', 'pincode', 'address', 'name', 'client', 'buyer', 'seller', 'consignee', 'vehicle', 'lr', 'e-way', 'bill'];
+
     lines.forEach(function(L) {
       var trimmed = L.trim();
-      if (!trimmed) return;
+      if (!trimmed || trimmed.length < 4) return;
       
-      // A. Extract Descriptions (looking for "1 " or "1. " or "01 ")
-      var descMatch = trimmed.match(/^(\d{1,2})[\s\.\)-]+\s*([A-Z0-9].{6,})/i); 
-      if (descMatch) {
-        var dText = descMatch[2].trim();
-        // Skip common junk headers
-        if (!/^(Item|Description|HSN|Qty|Rate|Amount|Invoice|Date|Name|Address)/i.test(dText)) {
-          descriptions.push(dText);
-          return; 
+      // A. Extract Potential Descriptions
+      // Criteria: Starts with Letter or digit, contains mostly letters/spaces, 6+ chars, not in junkWords
+      var isPotentialDesc = /^[A-Z0-9]/i.test(trimmed) && !/^\d+\s*$/.test(trimmed);
+      if (isPotentialDesc) {
+        var lowerL = trimmed.toLowerCase();
+        var containsJunk = junkWords.some(function(j) { return lowerL.indexOf(j) !== -1 && lowerL.length < (j.length + 5); });
+        
+        // Additional Check: If it has too many numbers, it's likely a data row, not a description
+        var digitCount = (trimmed.match(/\d/g) || []).length;
+        var alphaCount = (trimmed.match(/[a-z]/gi) || []).length;
+        
+        if (!containsJunk && alphaCount > digitCount) {
+          // Remove leading serial numbers if present "1. Product" -> "Product"
+          var cleanedDesc = trimmed.replace(/^(\d{1,2})[\s\.\)-]+\s*/, '').trim();
+          if (cleanedDesc.length > 5) {
+            descriptions.push(cleanedDesc);
+          }
         }
       }
 
       // B. Extract Clumped Numbers (Sliding Window)
-      // Supports numbers like 1,000 or 1000.00 or 1000
-      var nums = trimmed.match(/(\d{1,8}(?:,\d{3})*(?:\.\d{2})?)/g) || [];
-      if (nums.length >= 3) {
-         var nVals = nums.map(function(n){ return Number(n.replace(/,/g, '')); });
-         for (var k = 0; k < nVals.length; k++) {
-            var val = nVals[k];
-            // Match HSN/Code (4-8 digits) + 3 numbers (Qty, Rate, Amt)
-            if (val >= 1000 && val <= 99999999 && (k + 3) < nVals.length) {
-               var q = nVals[k+1];
-               var r = nVals[k+2];
-               var a = nVals[k+3];
-               // Optional: Validate Row
-               if (q > 0 && r > 0 && Math.abs((q * r) - a) < 10) {
+      var nums = (trimmed.match(/(\d{1,8}(?:,\d{3})*(?:\.\d{2})?)/g) || []).map(function(n){ return Number(n.replace(/,/g, '')); });
+      if (nums.length >= 2) {
+         for (var k = 0; k < nums.length; k++) {
+            var val = nums[k];
+            // Scenario 1: HSN (4-8 digits) + Qty + Rate + Amt
+            if (val >= 1000 && val <= 99999999 && (k + 3) < nums.length) {
+               var q = nums[k+1], r = nums[k+2], a = nums[k+3];
+               if (q > 0 && r > 0 && Math.abs((q * r) - a) < (a * 0.05 + 5)) {
                   dataBlocks.push({ qty: q, rate: r, amt: a });
-                  k += 3;
+                  k += 3; continue;
                }
-            } 
-            // Fallback: 3 numbers directly (Qty, Rate, Amt)
-            else if (val > 0 && val < 50000 && (k + 2) < nVals.length) {
-               var r2 = nVals[k+1];
-               var a2 = nVals[k+2];
-               if (Math.abs((val * r2) - a2) < 5) {
+            }
+            // Scenario 2: Qty + Rate + Amt
+            if (val > 0 && val < 50000 && (k + 2) < nums.length) {
+               var r2 = nums[k+1], a2 = nums[k+2];
+               if (r2 > 0 && Math.abs((val * r2) - a2) < (a2 * 0.05 + 5)) {
                   dataBlocks.push({ qty: val, rate: r2, amt: a2 });
-                  k += 2;
+                  k += 2; continue;
+               }
+            }
+            // Scenario 3: Qty + Amt (Rate implicit)
+            if (val > 0 && val < 50000 && (k + 1) < nums.length) {
+               var a3 = nums[k+1];
+               if (a3 > val && (a3 % val === 0 || a3 > 100)) {
+                  // Only add if we don't already have a more complex match on this line
+                  dataBlocks.push({ qty: val, rate: a3/val, amt: a3 });
+                  k += 1; continue;
                }
             }
          }
@@ -1089,17 +1104,18 @@ function api_parseInvoice(filename, dataUrl) {
 
     if (descriptions.length > 0 && dataBlocks.length > 0) {
       var tableItems = [];
-      // If we have more data blocks than descriptions, maybe some descriptions were multi-line
-      // or we missed some. We match them in order.
-      for (var pi = 0; pi < Math.min(descriptions.length, dataBlocks.length); pi++) {
+      // Match them in order. If we have offset (e.g. headers mistaken for descriptions), 
+      // the ordering might be off, but this is the best heuristic for Vision results.
+      var maxMatch = Math.min(descriptions.length, dataBlocks.length);
+      for (var pi = 0; pi < maxMatch; pi++) {
         tableItems.push({ 
           desc: descriptions[pi], 
           qty: dataBlocks[pi].qty, 
           amount: dataBlocks[pi].amt, 
-          method: 'universal_reconstruct_v4' 
+          method: 'smart_reconstruct_v5' 
         });
       }
-      // If reconstruction found more items than traditional, use it instead
+      // If reconstruction found more items than traditional methods, prefer it
       if (tableItems.length >= items.length) {
         items = tableItems;
       }
