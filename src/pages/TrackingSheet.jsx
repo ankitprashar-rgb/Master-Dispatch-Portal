@@ -4,12 +4,14 @@ import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import DispatchCard from '../components/dispatch/DispatchCard';
+import DispatchPreview from '../components/dispatch/DispatchPreview';
 
 export default function TrackingSheet() {
     const [dispatches, setDispatches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [dateRange, setDateRange] = useState({ from: '', to: '' });
+    const [previewData, setPreviewData] = useState(null);
 
     // Fetch Data
     const fetchDispatches = async () => {
@@ -205,12 +207,21 @@ export default function TrackingSheet() {
                                     mode="tracking"
                                     onUpdate={handleUpdate}
                                     onNotify={handleNotifyClient}
+                                    onViewPdf={(dispatchData) => setPreviewData(dispatchData)}
                                 />
                             ))}
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Delivery Challan Preview */}
+            {previewData && (
+                <DispatchPreview
+                    data={previewData}
+                    onClose={() => setPreviewData(null)}
+                />
+            )}
         </div>
     );
 }

@@ -42,7 +42,7 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
     return (
         <div className="fixed inset-0 z-[100] bg-gray-900/80 backdrop-blur-sm flex items-center justify-center p-4 print:p-0 print:bg-white print:static">
             {/* Controls - Hidden on Print */}
-            <div className="fixed top-4 right-4 sm:top-6 sm:right-8 flex items-center gap-2 sm:gap-3 print:hidden z-[110]">
+            <div className="fixed top-4 right-4 sm:top-6 sm:right-8 flex items-center gap-2 sm:gap-3 no-print z-[110]">
                 <button
                     onClick={handlePrint}
                     className="flex items-center gap-2 px-4 py-2 sm:px-6 sm:py-3 bg-white text-gray-900 border border-gray-200 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-gray-50 transition-all text-[10px] sm:text-xs"
@@ -57,9 +57,9 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
                 </button>
             </div>
 
-            {/* A4 Page Container */}
-            <div className="bg-[#D4DE47] p-2 overflow-y-auto max-h-screen print:p-0 print:bg-white print:overflow-visible print:max-h-none">
-                <div className="page-container bg-white w-[210mm] min-h-[297mm] mx-auto p-[10mm] shadow-2xl rounded-lg print:shadow-none print:w-full print:min-h-0 print:p-0">
+            {/* A4 Page Container - this is what gets printed */}
+            <div className="bg-[#D4DE47] p-2 overflow-y-auto max-h-screen print-area">
+                <div className="page-container bg-white w-[210mm] min-h-[297mm] mx-auto p-[10mm] shadow-2xl rounded-lg">
 
                     {/* SECTION 1: SHIPPING LABEL (TOP HALF) */}
                     <div className="border border-gray-200 rounded-xl p-6 relative">
@@ -262,23 +262,36 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
             <style dangerouslySetInnerHTML={{
                 __html: `
                 @media print {
-                    body * { visibility: hidden; }
-                    .print-area, .print-area * { visibility: visible; }
-                    .print-area { 
-                        position: absolute; 
-                        left: 0; 
-                        top: 0; 
+                    body { margin: 0; padding: 0; }
+                    .no-print { display: none !important; }
+                    .print-area {
+                        position: fixed;
+                        top: 0;
+                        left: 0;
                         width: 100%;
+                        height: auto;
+                        overflow: visible;
+                        background: white;
+                        z-index: 9999;
+                    }
+                    .page-container {
+                        width: 100% !important;
+                        min-height: auto !important;
+                        box-shadow: none !important;
+                        border-radius: 0 !important;
+                        padding: 10mm !important;
                     }
                     @page {
                         size: A4;
                         margin: 0;
                     }
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
                 }
             `}} />
-            <div className="hidden print:block print:w-full print-area">
-                {/* We just reuse the container content but mark it for printing */}
-            </div>
         </div>
     );
 }
