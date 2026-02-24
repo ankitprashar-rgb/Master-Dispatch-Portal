@@ -199,29 +199,61 @@ function doPost(e) {
   var action = postData.action;
 
   if (action === 'ocr') {
-    // 1. Try DocAI first
-    var res = api_parseInvoice_docai(postData.filename, postData.dataUrl);
-    
-    // 2. UNIVERSAL FALLBACK: If DocAI has 0 items or error, use the Unified v9.0 Engine
-    if (!res.ok || !res.items || res.items.length === 0) {
-       var v9Res = api_parseInvoice(postData.filename, postData.dataUrl);
-       // If v9 found items OR if it's our only source of text, use it
-       if ((v9Res.items && v9Res.items.length > 0) || !res.ok) {
-         res = v9Res;
-       } else if (v9Res.text && !res.text) {
-         res.text = v9Res.text;
-       }
-    }
-    
-    // Ensure status and basic fields exist for the UI
+    var combinedItems = [];
+    var combinedText = "";
+    var log = [];
+
+    // --- SOURCE 1: DocAI ---
+    try {
+      var dRes = api_parseInvoice_docai(postData.filename, postData.dataUrl);
+      if (dRes.ok && dRes.text) {
+        combinedText += "\n--- DOCAI SOURCE ---\n" + dRes.text;
+        var dMatch = api_spatialMatch(dRes.text, "DocAI");
+        combinedItems = combinedItems.concat(dMatch.items);
+        log = log.concat(dMatch.logs);
+      }
+    } catch (e) { log.push("DocAI Failed: " + String(e)); }
+
+    // --- SOURCE 2: Legacy Drive OCR ---
+    try {
+      var drRes = handleOCR(postData); // Your working legacy code
+      if (drRes.status === 'success' && drRes.text) {
+        combinedText += "\n--- DRIVE SOURCE ---\n" + drRes.text;
+        var drMatch = api_spatialMatch(drRes.text, "Drive");
+        combinedItems = combinedItems.concat(drMatch.items);
+        log = log.concat(drMatch.logs);
+      }
+    } catch (e) { log.push("Drive OCR Failed: " + String(e)); }
+
+    // --- SOURCE 3: Vision API (Image Only) ---
+    try {
+      var vRes = api_parseInvoice(postData.filename, postData.dataUrl);
+      if (vRes.ok && vRes.text) {
+        combinedText += "\n--- VISION SOURCE ---\n" + vRes.text;
+        var vMatch = api_spatialMatch(vRes.text, "Vision");
+        combinedItems = combinedItems.concat(vMatch.items);
+        log = log.concat(vMatch.logs);
+      }
+    } catch (e) { log.push("Vision Failed: " + String(e)); }
+
+    // Deduplicate Results (desc + amount)
+    var uniqueItems = [];
+    var seenItems = {};
+    combinedItems.forEach(function(it) {
+      var key = (it.desc || "").slice(0,10).toLowerCase() + "|" + Number(it.amount);
+      if (!seenItems[key]) {
+        uniqueItems.push(it);
+        seenItems[key] = true;
+      }
+    });
+
     var finalResponse = {
-      ok: !!res.ok,
-      status: res.ok ? 'success' : 'error',
-      items: res.items || [],
-      text: res.text || '',
-      ocr_method: res.ocr_method || 'vision_v9.0',
-      msg: res.msg || '',
-      debug: res.debug || {}
+      ok: true,
+      status: 'success',
+      items: uniqueItems,
+      text: combinedText,
+      ocr_method: 'vision_v10.0_omni',
+      debug: { log: log, sourcesFound: (combinedText.match(/SOURCE/g) || []).length }
     };
 
     return ContentService.createTextOutput(JSON.stringify(finalResponse))
@@ -939,13 +971,90 @@ function api_parseInvoice_docai(filename, dataUrl) {
  * VISION OCR PARSER
  */
 /**
- * UNIVERSAL OCR ENGINE (v9.0) - THE SPATIAL MATHER
+ * OMNI-PARSER CORE (v10.0) - THE INDESTRUCTIBLE ENGINE
+ * Merges text from DocAI, Vision, and Drive to find every math-valid triplet.
  */
-function api_parseInvoice(filename, dataUrl) {
+function api_spatialMatch(rawText, sourceTag) {
   var debugLogs = [];
+  var junkWords = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'bank', 'account', 'invoice', 'date', 'sac', 'pincode', 'state', 'regist', 'number', 'authorized', 'terms', 'condition', 'email', 'signat', 'word'];
+  
+  if (!rawText || rawText.length < 10) return { items: [], logs: ["No text to match for " + sourceTag] };
+
+  var lines = rawText.split('\n').filter(function(L) { return L.trim().length > 0; });
+  var allNumbers = [];
+
+  // Part A: Collect all numbers with spatial context
+  lines.forEach(function(L, idx) {
+    // Comma-blind regex: pulls 1,88,000 as 188000
+    var matches = L.match(/(\d[\d,]*(\.\d+)?)/g) || [];
+    matches.forEach(function(m) {
+      var n = Number(m.replace(/,/g, ''));
+      if (!isNaN(n) && n >= 0) allNumbers.push({ val: n, lineIdx: idx, raw: m });
+    });
+  });
+
+  // Part B: Global Math Discovery (Exhaustive Search)
+  var matchedItems = [];
+  var usedIdx = {};
+
+  for (var i = 0; i < allNumbers.length; i++) {
+    if (usedIdx[i]) continue;
+    var n1 = allNumbers[i].val;
+    if (n1 <= 0 || n1 > 100000) continue; 
+
+    for (var j = 0; j < allNumbers.length; j++) {
+      if (i === j || usedIdx[j]) continue;
+      var n2 = allNumbers[j].val;
+      if (n2 <= 0) continue;
+
+      var product = n1 * n2;
+      for (var k = 0; k < allNumbers.length; k++) {
+        if (k === i || k === j || usedIdx[k]) continue;
+        var n3 = allNumbers[k].val;
+        
+        // Match with 15% tolerance for rounding/discounts/taxes
+        if (Math.abs(product - n3) < (n3 * 0.15 + 15)) {
+          var qty = (n1 < n2) ? n1 : n2;
+          var amt = n3;
+          var topIdx = Math.min(allNumbers[i].lineIdx, allNumbers[j].lineIdx, allNumbers[k].lineIdx);
+          
+          // Spatial Binding: Look up for Description
+          var desc = "Line Item (" + sourceTag + ")";
+          for (var b = topIdx; b >= Math.max(0, topIdx - 5); b--) {
+            var cand = lines[b].trim();
+            var lower = cand.toLowerCase();
+            var hasAlpha = /[a-z]/i.test(cand);
+            var isJunk = junkWords.some(function(j) { return lower.indexOf(j) !== -1 && lower.length < (j.length + 5); });
+            var hasTooManyNums = (cand.match(/\d/g) || []).length > 8;
+
+            if (hasAlpha && !isJunk && !hasTooManyNums && cand.length > 5) {
+              desc = cand.replace(/^[\s\d.\)-]+/, '').replace(/\b\d{6}\b/g, '').trim();
+              if (desc.length > 5) break;
+            }
+          }
+          
+          matchedItems.push({ desc: desc, qty: qty, amount: amt, method: sourceTag + '_v10' });
+          debugLogs.push("[" + sourceTag + "] Matched: " + n1 + "*" + n2 + "=" + n3 + " (" + desc + ")");
+          
+          // Mark as used
+          usedIdx[i] = usedIdx[j] = usedIdx[k] = true;
+          j = allNumbers.length; k = allNumbers.length; // Break inner
+          break;
+        }
+      }
+    }
+  }
+  return { items: matchedItems, logs: debugLogs };
+}
+
+function api_parseInvoice(filename, dataUrl) {
+  // Logic deprecated in favor of omni-parse inside doPost to maximize context.
+  // This function now exists as a Vision API wrapper.
   try {
     var key = PropertiesService.getScriptProperties().getProperty('VISION_API_KEY');
     if (!key) return { ok: false, msg: 'VISION_API_KEY missing' };
+    var isPdf = (filename || '').toLowerCase().indexOf('.pdf') > -1;
+    if (isPdf) return { ok: true, items: [], text: '', msg: 'Skip Vision for PDF' };
 
     var base64 = String(dataUrl).split(',')[1];
     var res = UrlFetchApp.fetch('https://vision.googleapis.com/v1/images:annotate?key=' + key, {
@@ -954,104 +1063,9 @@ function api_parseInvoice(filename, dataUrl) {
       payload: JSON.stringify({ requests: [{ image: { content: base64 }, features: [{ type: 'TEXT_DETECTION' }] }] }),
       muteHttpExceptions: true
     });
-    
-    var responseCode = res.getResponseCode();
-    var responseText = res.getContentText();
-    if (responseCode !== 200) return { ok: false, msg: 'Vision API Error (' + responseCode + ')' };
-    
-    var json = JSON.parse(responseText);
-    var text = json.responses[0]?.fullTextAnnotation?.text || '';
-    if (!text) return { ok: true, items: [], text: '', msg: 'No text detected' };
-
-    var lines = text.split('\n').filter(function(L) { return L.trim().length > 0; });
-    var allNumbers = [];
-    var junkWords = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'bank', 'account', 'invoice', 'date', 'sac', 'hsn', 'pincode', 'state'];
-
-    // Part A: Collect all numbers with their spatial context (line index)
-    lines.forEach(function(L, idx) {
-      var matches = L.match(/(\d[\d,]*(\.\d+)?)/g) || [];
-      matches.forEach(function(m) {
-        var n = Number(m.replace(/,/g, ''));
-        if (!isNaN(n) && n >= 0) allNumbers.push({ val: n, lineIdx: idx, raw: m });
-      });
-    });
-
-    // Part B: Global Triplet Discovery (A * B = C)
-    var triplets = [];
-    for (var i = 0; i < allNumbers.length; i++) {
-      var n1 = allNumbers[i].val;
-      if (n1 <= 0 || n1 > 1000000) continue; // Skip implausible quantities/rates
-
-      for (var j = 0; j < allNumbers.length; j++) {
-        if (i === j) continue;
-        var n2 = allNumbers[j].val;
-        if (n2 <= 0) continue;
-
-        var product = n1 * n2;
-        // Search for the product in the stream
-        for (var k = 0; k < allNumbers.length; k++) {
-          if (k === i || k === j) continue;
-          var n3 = allNumbers[k].val;
-          
-          // Math Check with high tolerance for taxes (15%) and small variances
-          if (Math.abs(product - n3) < (n3 * 0.15 + 10)) {
-            // Found a potential row! Assign roles: n1(Qty), n2(Rate), n3(Total)
-            // Heuristic: Qty is usually smaller, Rate/Total larger.
-            var qty = (n1 < n2) ? n1 : n2;
-            var amt = n3;
-            var anchorIdx = Math.min(allNumbers[i].lineIdx, allNumbers[j].lineIdx, allNumbers[k].lineIdx);
-            
-            triplets.push({ qty: qty, amount: amt, anchorIdx: anchorIdx });
-            debugLogs.push("Found Triplet: " + n1 + " * " + n2 + " ≈ " + n3 + " at line " + anchorIdx);
-            
-            // Fast forward so we don't pick the same row multiple times
-            i = Math.max(i, j, k); 
-            j = allNumbers.length; // Break outer
-            break; 
-          }
-        }
-      }
-    }
-
-    // Part C: Spatial Descriptor Binding
-    var items = [];
-    triplets.forEach(function(trip) {
-      var desc = "Line Item";
-      // Scan 4 lines up from the top-most line of the numbers
-      for (var b = trip.anchorIdx; b >= Math.max(0, trip.anchorIdx - 4); b--) {
-        var cand = lines[b].trim();
-        var lower = cand.toLowerCase();
-        var hasAlpha = /[a-z]/i.test(cand);
-        var isJunk = junkWords.some(function(j) { return lower.indexOf(j) !== -1; });
-        var hasLotsOfNumbers = (cand.match(/\d/g) || []).length > 5;
-
-        if (hasAlpha && !isJunk && !hasLotsOfNumbers && cand.length > 5) {
-          desc = cand.replace(/^[\s\d.\)-]+/, '').trim();
-          if (desc.length > 5) break;
-        }
-      }
-      items.push({ desc: desc, qty: trip.qty, amount: trip.amount, method: 'v9_spatial' });
-    });
-
-    // Final Deduplication
-    var unique = [];
-    var seen = {};
-    items.forEach(function(it) {
-      var key = it.desc.slice(0,10) + "|" + it.amount;
-      if (!seen[key]) {
-        unique.push(it);
-        seen[key] = true;
-      }
-    });
-
-    return { 
-      ok: true, 
-      items: unique, 
-      text: text, 
-      debug: { log: debugLogs, count: unique.length },
-      ocr_method: 'vision_v9.0'
-    };
-  } catch (err) {
-    return { ok: false, msg: String(err), debug: { log: debugLogs } };
+    var json = JSON.parse(res.getContentText());
+    return { ok: true, text: json.responses[0]?.fullTextAnnotation?.text || '' };
+  } catch (e) {
+    return { ok: false, msg: String(e) };
   }
 }
