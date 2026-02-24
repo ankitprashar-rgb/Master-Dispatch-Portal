@@ -202,12 +202,15 @@ function doPost(e) {
     // Try DocAI first
     var res = api_parseInvoice_docai(postData.filename, postData.dataUrl);
     
-    // Fallback to Vision if DocAI failed OR returned fewer than 2 items (often noise)
-    if (!res.ok || (!res.items || res.items.length < 2)) {
+    // FALLBACK POLICY: If DocAI found 0 items OR failed, immediately try Vision
+    if (!res.ok || !res.items || res.items.length === 0) {
        var visionRes = api_parseInvoice(postData.filename, postData.dataUrl);
-       // If vision found more items, or if DocAI failed completely, use vision result
-       if ((visionRes.items && visionRes.items.length > (res.items ? res.items.length : 0)) || !res.ok) {
+       // If vision found items OR if DocAI failed completely, use vision
+       if ((visionRes.items && visionRes.items.length > 0) || !res.ok) {
          res = visionRes;
+       } else {
+         // Even if vision found 0 items, merge its text if DocAI text is empty
+         if (!res.text) res.text = visionRes.text;
        }
     }
     
@@ -965,9 +968,17 @@ function api_parseInvoice(filename, dataUrl) {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
-    var json = JSON.parse(res.getContentText());
+    
+    var responseCode = res.getResponseCode();
+    var responseText = res.getContentText();
+    
+    if (responseCode !== 200) {
+      return { ok: false, msg: 'Vision API Error (' + responseCode + '): ' + responseText };
+    }
+    
+    var json = JSON.parse(responseText);
     var text = json.responses[0]?.fullTextAnnotation?.text || '';
-    if (!text) return { ok: true, items: [], text: '' };
+    if (!text) return { ok: true, items: [], text: '', msg: 'Vision API returned no text' };
 
     var lines = text.split('\n');
     var items = [];
