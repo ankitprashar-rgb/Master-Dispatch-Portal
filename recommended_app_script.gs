@@ -974,103 +974,96 @@ function api_parseInvoice_docai(filename, dataUrl) {
  * VISION OCR PARSER
  */
 /**
- * CONTEXT-AWARE SPATIAL MATCHER (v12.0)
- * Tiers: 1. Table-Clipped Math Match, 2. Strict Line Heuristic
+ * STRUCTURAL ROW MATCHER (v13.0) - THE DEFINITIVE PARSER
+ * Anchors on line-based patterns (HSN, Qty/Rate/Amt sequences)
  */
 function api_spatialMatch(rawText, sourceTag) {
   var debugLogs = [];
-  var junkWords = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'bank', 'account', 'invoice', 'date', 'sac', 'pincode', 'state', 'regist', 'number', 'authorized', 'terms', 'condition', 'email', 'signat', 'word', 'plot', 'sector', 'road', 'street', 'village'];
-  
-  if (!rawText || rawText.length < 10) return { items: [], logs: ["No text found for " + sourceTag] };
-
+  var resultItems = [];
   var lines = rawText.split('\n').filter(function(L) { return L.trim().length > 0; });
   
-  // Part A: TABLE CLIPPING - Find the header row
-  var tableStartIdx = 0;
-  for (var h = 0; h < lines.length; h++) {
-    var l = lines[h].toLowerCase();
+  // Strict keywords that disqualify a line from being an item row
+  var DISQUALIFY = ['plot', 'sector', 'street', 'road', 'village', 'state', 'pincode', 'gstin', 'pan', 'regd', 'email', 'mobile', 'phone', 'total', 'tax', 'discount', 'invoice', 'date', 'sac', 'terms', 'condition', 'signat', 'bank', 'account'];
+  
+  // 1. Identify Start of Table
+  var startIdx = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i].toLowerCase();
     if ((l.indexOf('qty') > -1 || l.indexOf('rate') > -1) && (l.indexOf('amount') > -1 || l.indexOf('value') > -1)) {
-      tableStartIdx = h;
-      debugLogs.push("Table Header recognized at line " + h + ": " + lines[h]);
+      startIdx = i;
+      debugLogs.push("Start found at line " + i);
       break;
     }
   }
 
-  // Part B: Collect numbers ONLY from the table area (plus a small buffer for headers)
-  var allNumbers = [];
-  lines.forEach(function(L, idx) {
-    if (idx < tableStartIdx && idx > 5) return; // Skip pre-table junk but keep potential top-line items
-    var matches = L.match(/(\d[\d,]*(\.\d+)?)/g) || [];
-    matches.forEach(function(m) {
-      if (m.length > 10) return; // Skip GSTINs/Phone numbers
-      var n = Number(m.replace(/,/g, ''));
-      if (!isNaN(n) && n >= 0) allNumbers.push({ val: n, lineIdx: idx, raw: m });
-    });
-  });
-
-  var matchedItems = [];
-  var usedLines = {};
-
-  // --- TIER 1: STRICT TABLE MATH (Priority) ---
-  for (var i = 0; i < allNumbers.length; i++) {
-    if (allNumbers[i].lineIdx < tableStartIdx) continue; // STRICT: Math must be in the table
+  // 2. Iterate Rows below Start
+  for (var i = startIdx + 1; i < lines.length; i++) {
+    var rawLine = lines[i].trim();
+    var lowerLine = rawLine.toLowerCase();
     
-    var n1 = allNumbers[i].val;
-    if (n1 <= 0 || n1 > 100000) continue; 
+    // Skip if disqualifier found
+    if (DISQUALIFY.some(function(d) { return lowerLine.indexOf(d) > -1; })) continue;
 
-    for (var j = 0; j < allNumbers.length; j++) {
-      if (i === j) continue;
-      var n2 = allNumbers[j].val;
-      if (n2 <= 0) continue;
-      
-      var product = n1 * n2;
-      for (var k = 0; k < allNumbers.length; k++) {
-        if (k === i || k === j) continue;
-        var n3 = allNumbers[k].val;
+    // Pattern A: Look for HSN (6-8 digits)
+    var hsnMatch = rawLine.match(/\b(\d{6,8})\b/);
+    var numbers = rawLine.match(/(\d[\d,]*(\.\d+)?)/g) || [];
+    var numericVals = numbers.map(function(m) { return Number(m.replace(/,/g, '')); }).filter(function(n) { return !isNaN(n); });
+
+    var item = null;
+
+    if (hsnMatch && numericVals.length >= 3) {
+      // Common pattern: HSN ... Qty ... Rate ... Amount
+      // Find numbers to the right of HSN
+      var hsnVal = Number(hsnMatch[1]);
+      var hsnIdxInArray = numericVals.indexOf(hsnVal);
+      if (hsnIdxInArray > -1 && numericVals.length > hsnIdxInArray + 2) {
+        var q = numericVals[hsnIdxInArray + 1];
+        var r = numericVals[hsnIdxInArray + 2];
+        var a = numericVals[numericVals.length - 1]; // Assume last is Total
         
-        // STRICTOR Math: 5% tolerance + flat ₹20 offset
-        if (Math.abs(product - n3) < (n3 * 0.05 + 20)) {
-          var qty = (n1 < n2) ? n1 : n2;
-          var topIdx = Math.min(allNumbers[i].lineIdx, allNumbers[j].lineIdx, allNumbers[k].lineIdx);
-          
-          // STRICT Proximity: Look up only 2 lines
-          var desc = "Line Item (" + sourceTag + ")";
-          for (var b = topIdx; b >= Math.max(0, topIdx - 2); b--) {
-            var cand = lines[b].trim();
-            if (/[a-z]/i.test(cand) && cand.length > 5 && !junkWords.some(function(j) { return cand.toLowerCase().indexOf(j) !== -1; })) {
-              desc = cand.replace(/^[\s\d.\)-]+/, '').trim();
-              if (desc.length > 5) break;
-            }
-          }
-          
-          matchedItems.push({ desc: desc, qty: qty, amount: n3, method: sourceTag + '_v12_math' });
-          usedLines[allNumbers[i].lineIdx] = true;
-          usedLines[allNumbers[j].lineIdx] = true;
-          usedLines[allNumbers[k].lineIdx] = true;
-          i = Math.max(i, j, k); j = allNumbers.length; k = allNumbers.length; break;
+        // Simple Math cross-check
+        if (Math.abs(q * r - a) < (a * 0.1 + 10)) {
+           item = { desc: rawLine.split(hsnMatch[1])[0].trim(), qty: q, amount: a };
         }
+      }
+    } else if (numericVals.length >= 3) {
+      // Pattern B: No HSN but valid row math [Qty, Rate, Total] at end
+      var a = numericVals[numericVals.length - 1];
+      var r = numericVals[numericVals.length - 2];
+      var q = numericVals[numericVals.length - 3];
+      
+      if (Math.abs(q * r - a) < (a * 0.1 + 10)) {
+         var descPart = rawLine.replace(/[\d,.]/g, '').trim(); // Strip numbers for desc
+         if (descPart.length < 5) {
+           // Desc might be on the line above
+           descPart = (i > 0) ? lines[i-1].trim() : "Line Item";
+         }
+         item = { desc: descPart, qty: q, amount: a };
+      }
+    }
+
+    if (item && item.desc.length > 3) {
+      item.desc = item.desc.replace(/^[\s\d.-]+/, '').trim();
+      if (item.desc.length > 5) {
+        item.method = sourceTag + '_v13_structural';
+        resultItems.push(item);
+        debugLogs.push("Matched structural row: " + item.desc);
       }
     }
   }
 
-  // --- TIER 2: STRICT LINE HEURISTIC ---
-  lines.forEach(function(L, idx) {
-    if (usedLines[idx] || idx <= tableStartIdx) return;
-    var clean = L.replace(/[₹,]/g, '').trim();
-    var parts = clean.split(/\s+/);
-    if (parts.length >= 3) { // Require at least 3 parts (Desc, Qty, Amt)
-      var amt = Number(parts[parts.length - 1]);
-      var qty = Number(parts[parts.length - 2]);
-      if (!isNaN(amt) && !isNaN(qty) && amt > 0 && qty > 0) {
-        var d = parts.slice(0, -2).join(' ').trim();
-        if (d.length > 5 && !junkWords.some(function(j) { return d.toLowerCase().indexOf(j) !== -1; })) {
-          matchedItems.push({ desc: d, qty: qty, amount: amt, method: sourceTag + '_v12_strictL' });
-        }
-      }
+  // Deduplicate
+  var unique = [];
+  var seen = {};
+  resultItems.forEach(function(it) {
+    var key = it.desc.slice(0,10) + "|" + it.amount;
+    if (!seen[key]) {
+      unique.push(it);
+      seen[key] = true;
     }
   });
 
-  return { items: matchedItems, logs: debugLogs };
+  return { items: unique, logs: debugLogs };
 }
 
 function api_parseInvoice(filename, dataUrl) {
