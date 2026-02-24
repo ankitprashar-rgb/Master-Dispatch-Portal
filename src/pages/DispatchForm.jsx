@@ -534,17 +534,20 @@ export default function DispatchForm() {
                                         <td className="px-4 py-2 text-center text-gray-400">{idx + 1}</td>
                                         <td className="px-4 py-2">
                                             <div className="flex flex-col">
-                                                <input
-                                                    type="text"
-                                                    value={item.desc}
-                                                    onChange={(e) => {
-                                                        const newItems = [...items];
-                                                        newItems[idx].desc = e.target.value;
-                                                        setItems(newItems);
-                                                    }}
-                                                    className="w-full bg-transparent outline-none border-b border-transparent focus:border-brand py-1 font-medium"
-                                                    placeholder="Item description"
-                                                />
+                                                <div className="flex items-center gap-2 group/field">
+                                                    <input
+                                                        type="text"
+                                                        value={item.desc}
+                                                        onChange={(e) => {
+                                                            const newItems = [...items];
+                                                            newItems[idx].desc = e.target.value;
+                                                            setItems(newItems);
+                                                        }}
+                                                        className="w-full bg-transparent outline-none border-b border-transparent focus:border-brand py-1 font-medium"
+                                                        placeholder="Item description"
+                                                    />
+                                                    <Pencil className="text-gray-300 group-hover/field:text-brand transition-colors hidden sm:block" size={12} />
+                                                </div>
                                                 <div className="flex flex-col gap-1 mt-1.5">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">
@@ -565,32 +568,35 @@ export default function DispatchForm() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-2 text-right">
-                                            <input
-                                                type="number"
-                                                value={item.qty}
-                                                onChange={(e) => {
-                                                    const val = Number(e.target.value) || 0;
-                                                    const newItems = [...items];
-                                                    newItems[idx].qty = e.target.value;
-                                                    newItems[idx].amount = val * 750; // Suggested logic
-                                                    setItems(newItems);
+                                            <div className="flex items-center justify-end gap-1 group/field">
+                                                <input
+                                                    type="number"
+                                                    value={item.qty}
+                                                    onChange={(e) => {
+                                                        const val = Number(e.target.value) || 0;
+                                                        const newItems = [...items];
+                                                        newItems[idx].qty = e.target.value;
+                                                        newItems[idx].amount = val * 750; // Suggested logic
+                                                        setItems(newItems);
 
-                                                    // Alert on Breach/Reach
-                                                    if (item.masterQty > 0) {
-                                                        const total = (Number(item.dispatchedSoFar) || 0) + val;
-                                                        if (total > item.masterQty) {
-                                                            alert(`⚠️ WARNING: Total quantity for "${item.desc}" (${total}) exceeds Master Qty (${item.masterQty})!`);
-                                                        } else if (total === item.masterQty) {
-                                                            alert(`✅ NOTE: Master quantity reached for "${item.desc}". Project complete.`);
+                                                        // Alert on Breach/Reach
+                                                        if (item.masterQty > 0) {
+                                                            const total = (Number(item.dispatchedSoFar) || 0) + val;
+                                                            if (total > item.masterQty) {
+                                                                alert(`⚠️ WARNING: Total quantity for "${item.desc}" (${total}) exceeds Master Qty (${item.masterQty})!`);
+                                                            } else if (total === item.masterQty) {
+                                                                alert(`✅ NOTE: Master quantity reached for "${item.desc}". Project complete.`);
+                                                            }
                                                         }
-                                                    }
-                                                }}
-                                                className={cn(
-                                                    "w-full bg-transparent outline-none border-b border-transparent focus:border-brand py-1 text-right font-black",
-                                                    isExceeded && "text-red-600"
-                                                )}
-                                                placeholder="0"
-                                            />
+                                                    }}
+                                                    className={cn(
+                                                        "w-full bg-transparent outline-none border-b border-transparent focus:border-brand py-1 text-right font-black",
+                                                        isExceeded && "text-red-600"
+                                                    )}
+                                                    placeholder="0"
+                                                />
+                                                <Pencil className="text-gray-200 group-hover/field:text-brand transition-colors hidden sm:block" size={10} />
+                                            </div>
                                         </td>
                                         <td className="px-4 py-2 text-right">
                                             <input

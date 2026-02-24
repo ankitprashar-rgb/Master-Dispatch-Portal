@@ -982,19 +982,30 @@ function api_spatialMatch(rawText, sourceTag) {
   var lines = rawText.split('\n').filter(function(L) { return L.trim().length > 0; });
   
   // 1. Extract Description Stream
-  // Look for lines starting with "1 ", "2 ", etc., and capture the text after it.
+  // Look for lines starting with "1 ", "2 ", etc. 
+  // Heuristic: If the next line is long and doesn't start with a number, it's part of the description.
   var descriptions = [];
-  lines.forEach(function(L) {
-    var dMatch = L.trim().match(/^(\d+)\s+([A-Z\s.-]{5,}.*)/i);
+  for (var i = 0; i < lines.length; i++) {
+    var L = lines[i].trim();
+    var dMatch = L.match(/^(\d+)\s+([A-Z\s.-]{3,}.*)/i);
     if (dMatch) {
       var d = dMatch[2].trim();
+      // Lookahead: Is the next line the actual product name?
+      if (i + 1 < lines.length) {
+        var nextL = lines[i+1].trim();
+        if (!/^\d+/.test(nextL) && nextL.length > 10 && !/(plot|sector|road|gstin|regist)/i.test(nextL)) {
+          d = d + " - " + nextL;
+          i++; // Skip next line
+        }
+      }
+      
       // Junk filter for headers/footers
       if (!/(plot|sector|gstin|authorized|signat|total|tax|terms|regist|invoice)/i.test(d)) {
         descriptions.push(d);
-        debugLogs.push("Found Desc: " + d);
+        debugLogs.push("Found Desc Stream: " + d);
       }
     }
-  });
+  }
 
   // 2. Extract Data Stream (The math triplets)
   // Scan the entire text stream for [HSN] [Qty] [Rate] [Amount]
