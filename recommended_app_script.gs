@@ -982,28 +982,42 @@ function api_spatialMatch(rawText, sourceTag) {
   var lines = rawText.split('\n').filter(function(L) { return L.trim().length > 0; });
   
   // 1. Extract Description Stream
-  // Look for lines starting with "1 ", "2 ", etc. 
-  // Heuristic: If the next line is long and doesn't start with a number, it's part of the description.
+  // Strategy: scan from table header until the first HSN number appears.
+  // Everything meaningful in that zone is a description (top-to-bottom order).
+  var TABLE_JUNK = /(plot|sector|gstin|authorized|signat|total|tax|terms|regist|invoice|sub.total|advance|adjust|hsn|qty|rate|amount|sac|bill|place|supply|nungam|valluvark)/i;
+  var HSN_PATTERN = /\b9[89]\d{4}\b/; // Matches 998391 and similar HSNs
+
+  // Find table header line
+  var tableStart = 0;
+  for (var t = 0; t < lines.length; t++) {
+    var lt = lines[t].toLowerCase();
+    if ((lt.indexOf('qty') > -1 || lt.indexOf('rate') > -1) && (lt.indexOf('amount') > -1 || lt.indexOf('hsn') > -1)) {
+      tableStart = t;
+      debugLogs.push("Table start: line " + t);
+      break;
+    }
+  }
+
+  // Collect every meaningful text line between table header and first HSN
   var descriptions = [];
-  for (var i = 0; i < lines.length; i++) {
+  for (var i = tableStart + 1; i < lines.length; i++) {
     var L = lines[i].trim();
-    var dMatch = L.match(/^(\d{1,2})\s+([A-Z\s.-]{3,}.*)/i);
-    if (dMatch) {
-      var d = dMatch[2].trim();
-      // Lookahead: Is the next line the actual product name?
-      if (i + 1 < lines.length) {
-        var nextL = lines[i+1].trim();
-        if (!/^\d+/.test(nextL) && nextL.length > 10 && !/(plot|sector|road|gstin|regist)/i.test(nextL)) {
-          d = d + " - " + nextL;
-          i++; // Skip next line
-        }
-      }
-      
-      // Junk filter for headers/footers
-      if (!/(plot|sector|gstin|authorized|signat|total|tax|terms|regist|invoice)/i.test(d)) {
-        descriptions.push(d);
-        debugLogs.push("Found Desc Stream: " + d);
-      }
+    // Stop when we hit the data section (HSN codes)
+    if (HSN_PATTERN.test(L)) {
+      debugLogs.push("Hit HSN data at line " + i + ". Stopped desc collection.");
+      break;
+    }
+    // Skip junk lines
+    if (TABLE_JUNK.test(L)) continue;
+    // Skip pure-number lines (row numbers, dates, etc.)
+    if (/^[\d\s,.₹]+$/.test(L)) continue;
+    // Skip very short lines
+    if (L.replace(/\s/g,'').length < 5) continue;
+    // Strip leading item number and capture
+    var d = L.replace(/^\d{1,2}[\s.)-]+/, '').trim();
+    if (d.length > 5 && /[a-z]/i.test(d)) {
+      descriptions.push(d);
+      debugLogs.push("Desc: " + d);
     }
   }
 
