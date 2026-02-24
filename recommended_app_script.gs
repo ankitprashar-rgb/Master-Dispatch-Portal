@@ -987,7 +987,7 @@ function api_spatialMatch(rawText, sourceTag) {
   var descriptions = [];
   for (var i = 0; i < lines.length; i++) {
     var L = lines[i].trim();
-    var dMatch = L.match(/^(\d+)\s+([A-Z\s.-]{3,}.*)/i);
+    var dMatch = L.match(/^(\d{1,2})\s+([A-Z\s.-]{3,}.*)/i);
     if (dMatch) {
       var d = dMatch[2].trim();
       // Lookahead: Is the next line the actual product name?
