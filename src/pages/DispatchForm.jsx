@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Plus, Trash2, Printer, Search, Loader2, FileDown } from 'lucide-react';
+import { Upload, Plus, Trash2, Printer, Search, Loader2, FileDown, Pencil } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import DispatchPreview from '../components/dispatch/DispatchPreview';
