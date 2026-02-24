@@ -201,11 +201,25 @@ function doPost(e) {
   if (action === 'ocr') {
     var combinedItems = [];
     var combinedText = "";
+    var sourceResults = {};
     var log = [];
 
-    // --- SOURCE 1: DocAI ---
+    // --- PRIORITY SOURCE: Legacy Drive OCR ---
+    try {
+      var drRes = handleOCR(postData); 
+      sourceResults.Drive = drRes;
+      if (drRes.status === 'success' && drRes.text) {
+        combinedText += "\n--- DRIVE SOURCE (Legacy) ---\n" + drRes.text;
+        var drMatch = api_spatialMatch(drRes.text, "Drive");
+        combinedItems = combinedItems.concat(drMatch.items);
+        log = log.concat(drMatch.logs);
+      }
+    } catch (e) { log.push("Drive OCR Failed: " + String(e)); }
+
+    // --- SECONDARY SOURCE: DocAI ---
     try {
       var dRes = api_parseInvoice_docai(postData.filename, postData.dataUrl);
+      sourceResults.DocAI = dRes;
       if (dRes.ok && dRes.text) {
         combinedText += "\n--- DOCAI SOURCE ---\n" + dRes.text;
         var dMatch = api_spatialMatch(dRes.text, "DocAI");
@@ -214,29 +228,19 @@ function doPost(e) {
       }
     } catch (e) { log.push("DocAI Failed: " + String(e)); }
 
-    // --- SOURCE 2: Legacy Drive OCR ---
-    try {
-      var drRes = handleOCR(postData); // Your working legacy code
-      if (drRes.status === 'success' && drRes.text) {
-        combinedText += "\n--- DRIVE SOURCE ---\n" + drRes.text;
-        var drMatch = api_spatialMatch(drRes.text, "Drive");
-        combinedItems = combinedItems.concat(drMatch.items);
-        log = log.concat(drMatch.logs);
-      }
-    } catch (e) { log.push("Drive OCR Failed: " + String(e)); }
-
-    // --- SOURCE 3: Vision API (Image Only) ---
+    // --- TERTIARY SOURCE: Vision API ---
     try {
       var vRes = api_parseInvoice(postData.filename, postData.dataUrl);
+      sourceResults.Vision = vRes;
       if (vRes.ok && vRes.text) {
         combinedText += "\n--- VISION SOURCE ---\n" + vRes.text;
         var vMatch = api_spatialMatch(vRes.text, "Vision");
         combinedItems = combinedItems.concat(vMatch.items);
         log = log.concat(vMatch.logs);
       }
-    } catch (e) { log.push("Vision Failed: " + String(e)); }
+    } catch (e) { log.push("Vision GPT Failed: " + String(e)); }
 
-    // Deduplicate Results (desc + amount)
+    // Deduplicate Results
     var uniqueItems = [];
     var seenItems = {};
     combinedItems.forEach(function(it) {
@@ -247,17 +251,15 @@ function doPost(e) {
       }
     });
 
-    var finalResponse = {
+    return ContentService.createTextOutput(JSON.stringify({
       ok: true,
       status: 'success',
       items: uniqueItems,
       text: combinedText,
-      ocr_method: 'vision_v10.0_omni',
-      debug: { log: log, sourcesFound: (combinedText.match(/SOURCE/g) || []).length }
-    };
-
-    return ContentService.createTextOutput(JSON.stringify(finalResponse))
-      .setMimeType(ContentService.MimeType.JSON);
+      ocr_method: 'legacy_v11.0_fusion',
+      sourceResults: sourceResults,
+      debug: { log: log }
+    })).setMimeType(ContentService.MimeType.JSON);
   }
   
   if (action === 'notify') {
@@ -924,14 +926,15 @@ function api_parseInvoice_docai(filename, dataUrl) {
     var json = JSON.parse(text);
 
     if (status !== 200) {
-      return { ok: false, msg: 'DocAI Error: ' + text };
+      return { ok: false, msg: 'DocAI API Error (' + status + '): ' + text, text: '' };
     }
 
     var doc = json.document || (json.documents && json.documents[0]);
-    if (!doc) return { ok: false, msg: 'DocAI: no document found' };
+    if (!doc) return { ok: false, msg: 'DocAI: No document data in response', text: '' };
 
-    var items = [];
+    var fullText = doc.text || '';
     var entities = doc.entities || [];
+    var items = [];
     
     function getChild(eObj, typeNames) {
       if (!eObj.properties) return '';
@@ -961,9 +964,9 @@ function api_parseInvoice_docai(filename, dataUrl) {
       }
     });
 
-    return { ok: true, items: items, text: doc.text || '' };
+    return { ok: true, items: items, text: fullText, ocr_method: 'docai_v11' };
   } catch (err) {
-    return { ok: false, msg: String(err) };
+    return { ok: false, msg: String(err), text: '' };
   }
 }
 
@@ -971,21 +974,20 @@ function api_parseInvoice_docai(filename, dataUrl) {
  * VISION OCR PARSER
  */
 /**
- * OMNI-PARSER CORE (v10.0) - THE INDESTRUCTIBLE ENGINE
- * Merges text from DocAI, Vision, and Drive to find every math-valid triplet.
+ * HYBRID SPATIAL MATCHER (v11.0) - THE UNBREAKABLE ENGINE
+ * Tiers: 1. Math Triplet Search, 2. Greedy Line Heuristic
  */
 function api_spatialMatch(rawText, sourceTag) {
   var debugLogs = [];
   var junkWords = ['total', 'tax', 'gst', 'igst', 'sgst', 'cgst', 'discount', 'vat', 'net', 'phone', 'mobile', 'bank', 'account', 'invoice', 'date', 'sac', 'pincode', 'state', 'regist', 'number', 'authorized', 'terms', 'condition', 'email', 'signat', 'word'];
   
-  if (!rawText || rawText.length < 10) return { items: [], logs: ["No text to match for " + sourceTag] };
+  if (!rawText || rawText.length < 10) return { items: [], logs: ["No text found for " + sourceTag] };
 
   var lines = rawText.split('\n').filter(function(L) { return L.trim().length > 0; });
   var allNumbers = [];
 
   // Part A: Collect all numbers with spatial context
   lines.forEach(function(L, idx) {
-    // Comma-blind regex: pulls 1,88,000 as 188000
     var matches = L.match(/(\d[\d,]*(\.\d+)?)/g) || [];
     matches.forEach(function(m) {
       var n = Number(m.replace(/,/g, ''));
@@ -993,57 +995,61 @@ function api_spatialMatch(rawText, sourceTag) {
     });
   });
 
-  // Part B: Global Math Discovery (Exhaustive Search)
   var matchedItems = [];
-  var usedIdx = {};
+  var usedLines = {};
 
+  // --- TIER 1: GLOBAL MATH TRIPLETS (Priority) ---
   for (var i = 0; i < allNumbers.length; i++) {
-    if (usedIdx[i]) continue;
     var n1 = allNumbers[i].val;
     if (n1 <= 0 || n1 > 100000) continue; 
-
     for (var j = 0; j < allNumbers.length; j++) {
-      if (i === j || usedIdx[j]) continue;
+      if (i === j) continue;
       var n2 = allNumbers[j].val;
       if (n2 <= 0) continue;
-
       var product = n1 * n2;
       for (var k = 0; k < allNumbers.length; k++) {
-        if (k === i || k === j || usedIdx[k]) continue;
+        if (k === i || k === j) continue;
         var n3 = allNumbers[k].val;
-        
-        // Match with 15% tolerance for rounding/discounts/taxes
         if (Math.abs(product - n3) < (n3 * 0.15 + 15)) {
           var qty = (n1 < n2) ? n1 : n2;
-          var amt = n3;
           var topIdx = Math.min(allNumbers[i].lineIdx, allNumbers[j].lineIdx, allNumbers[k].lineIdx);
-          
-          // Spatial Binding: Look up for Description
           var desc = "Line Item (" + sourceTag + ")";
           for (var b = topIdx; b >= Math.max(0, topIdx - 5); b--) {
             var cand = lines[b].trim();
-            var lower = cand.toLowerCase();
-            var hasAlpha = /[a-z]/i.test(cand);
-            var isJunk = junkWords.some(function(j) { return lower.indexOf(j) !== -1 && lower.length < (j.length + 5); });
-            var hasTooManyNums = (cand.match(/\d/g) || []).length > 8;
-
-            if (hasAlpha && !isJunk && !hasTooManyNums && cand.length > 5) {
-              desc = cand.replace(/^[\s\d.\)-]+/, '').replace(/\b\d{6}\b/g, '').trim();
-              if (desc.length > 5) break;
+            if (/[a-z]/i.test(cand) && cand.length > 5 && !junkWords.some(function(j) { return cand.toLowerCase().indexOf(j) !== -1; })) {
+              desc = cand.replace(/^[\s\d.\)-]+/, '').trim();
+              break;
             }
           }
-          
-          matchedItems.push({ desc: desc, qty: qty, amount: amt, method: sourceTag + '_v10' });
-          debugLogs.push("[" + sourceTag + "] Matched: " + n1 + "*" + n2 + "=" + n3 + " (" + desc + ")");
-          
-          // Mark as used
-          usedIdx[i] = usedIdx[j] = usedIdx[k] = true;
-          j = allNumbers.length; k = allNumbers.length; // Break inner
-          break;
+          matchedItems.push({ desc: desc, qty: qty, amount: n3, method: sourceTag + '_v11_math' });
+          usedLines[allNumbers[i].lineIdx] = true;
+          usedLines[allNumbers[j].lineIdx] = true;
+          usedLines[allNumbers[k].lineIdx] = true;
+          i = Math.max(i, j, k); j = allNumbers.length; k = allNumbers.length; break;
         }
       }
     }
   }
+
+  // --- TIER 2: GREEDY LINE HEURISTIC (The Fallback) ---
+  lines.forEach(function(L, idx) {
+    if (usedLines[idx]) return;
+    var clean = L.replace(/[₹,]/g, '').trim();
+    var parts = clean.split(/\s+/);
+    if (parts.length >= 2) {
+      var last = Number(parts[parts.length - 1]);
+      if (!isNaN(last) && last > 0 && last < 1000000) {
+        var prev = Number(parts[parts.length - 2]);
+        var q = (!isNaN(prev) && prev > 0 && prev < 10000) ? prev : 1;
+        var dParts = parts.slice(0, (!isNaN(prev) && prev > 0) ? -2 : -1);
+        var d = dParts.join(' ').trim();
+        if (d.length > 5 && /[a-z]/i.test(d) && !junkWords.some(function(j) { return d.toLowerCase().indexOf(j) !== -1; })) {
+          matchedItems.push({ desc: d, qty: q, amount: last, method: sourceTag + '_v11_greedy' });
+        }
+      }
+    }
+  });
+
   return { items: matchedItems, logs: debugLogs };
 }
 
