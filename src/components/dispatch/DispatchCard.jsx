@@ -36,22 +36,23 @@ export default function DispatchCard({
         setLocalCourier(data.courier_company || '');
     }, [data.courier_company]);
 
-    // Status Logic (Revised)
-    const requiresEway = totalAmount > 50000;
-    const courierDone = !!(data.tracking_id || data.courier_company || data.courier_slip_url || data.dispatch_data?.trackingId || data.dispatch_data?.courierCompany || data.dispatch_data?.courierSlipUrl);
-    const ewayDone = !requiresEway || !!(ewayBillUrl || data.eway_bill_url);
-    const isComplete = courierDone && ewayDone;
-    const isSent = isComplete && !!data.email_sent_at;
-    const isProcessed = isComplete && !isSent; // Courier done, eway done, no email yet
-    const isPending = !courierDone; // Missing courier
-    const isEwayPending = courierDone && !ewayDone; // Courier done but missing eway bill
-
+    // Unified Items Logic (Prefer relational items, fallback to JSONB)
     const isArchived = !!data.is_archived;
     const items = (data.dispatch_items && data.dispatch_items.length > 0)
         ? data.dispatch_items.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, masterQty: i.master_qty }))
         : (data.dispatch_data?.items?.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty })) || []);
     const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
     const totalAmount = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+
+    // Status Logic (Revised) — must come after totalAmount is defined
+    const requiresEway = totalAmount > 50000;
+    const courierDone = !!(data.tracking_id || data.courier_company || data.courier_slip_url || data.dispatch_data?.trackingId || data.dispatch_data?.courierCompany || data.dispatch_data?.courierSlipUrl);
+    const ewayDone = !requiresEway || !!(ewayBillUrl || data.eway_bill_url);
+    const isComplete = courierDone && ewayDone;
+    const isSent = isComplete && !!data.email_sent_at;
+    const isProcessed = isComplete && !isSent;
+    const isPending = !courierDone;
+    const isEwayPending = courierDone && !ewayDone;
 
     const handleEmailUpdate = (e) => {
         setEmail(e.target.value);
