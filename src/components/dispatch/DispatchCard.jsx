@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, MapPin, Truck, FileText, Upload, ExternalLink, Mail, X, Save, Edit2, Trash2, Printer, Archive, Loader2, Check } from 'lucide-react';
+import { ChevronRight, MapPin, Truck, FileText, Upload, ExternalLink, Mail, X, Save, Edit2, Trash2, Printer, Archive, Loader2, Check, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../../lib/utils';
 
@@ -18,11 +18,15 @@ export default function DispatchCard({
     const [isOcrSuccess, setIsOcrSuccess] = useState(false);
     const [isEmailLoading, setIsEmailLoading] = useState(false);
     const [isEmailSuccess, setIsEmailSuccess] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [email, setEmail] = useState(data.client_email || data.dispatch_data?.clientEmail || '');
     const [previewUrl, setPreviewUrl] = useState(data.courier_slip_url || '');
+    const [ewayBillUrl, setEwayBillUrl] = useState(data.eway_bill_url || '');
+    const [isEwayUploading, setIsEwayUploading] = useState(false);
     const [localAwb, setLocalAwb] = useState(data.tracking_id || '');
     const [localCourier, setLocalCourier] = useState(data.courier_company || '');
     const fileInputRef = useRef(null);
+    const ewayFileRef = useRef(null);
 
     useEffect(() => {
         setLocalAwb(data.tracking_id || '');
@@ -32,14 +36,17 @@ export default function DispatchCard({
         setLocalCourier(data.courier_company || '');
     }, [data.courier_company]);
 
-    // Status Logic
-    const isSent = !!data.email_sent_at;
-    const isArchived = !!data.is_archived;
-    const hasTrackingInfo = !!(data.tracking_id || data.courier_company || data.courier_slip_url || data.dispatch_data?.trackingId || data.dispatch_data?.courierCompany || data.dispatch_data?.courierSlipUrl);
-    const isProcessed = !isSent && hasTrackingInfo;
-    const isPending = !isSent && !isProcessed;
+    // Status Logic (Revised)
+    const requiresEway = totalAmount > 50000;
+    const courierDone = !!(data.tracking_id || data.courier_company || data.courier_slip_url || data.dispatch_data?.trackingId || data.dispatch_data?.courierCompany || data.dispatch_data?.courierSlipUrl);
+    const ewayDone = !requiresEway || !!(ewayBillUrl || data.eway_bill_url);
+    const isComplete = courierDone && ewayDone;
+    const isSent = isComplete && !!data.email_sent_at;
+    const isProcessed = isComplete && !isSent; // Courier done, eway done, no email yet
+    const isPending = !courierDone; // Missing courier
+    const isEwayPending = courierDone && !ewayDone; // Courier done but missing eway bill
 
-    // Unified Items Logic (Prefer relational items, fallback to JSONB)
+    const isArchived = !!data.is_archived;
     const items = (data.dispatch_items && data.dispatch_items.length > 0)
         ? data.dispatch_items.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, masterQty: i.master_qty }))
         : (data.dispatch_data?.items?.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty })) || []);
@@ -145,20 +152,61 @@ export default function DispatchCard({
         }
     };
 
+    const handleEwayUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setIsEwayUploading(true);
+        try {
+            const reader = new FileReader();
+            const dataUrl = await new Promise((res, rej) => {
+                reader.onload = () => res(reader.result);
+                reader.onerror = rej;
+                reader.readAsDataURL(file);
+            });
+            const apiUrl = import.meta.env.VITE_GOOGLE_CLIENTS_API_URL;
+            if (!apiUrl) throw new Error('API URL not configured');
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: 'upload_file', filename: file.name, dataUrl, folder: 'eway_bills' })
+            });
+            const result = await response.json();
+            const url = result.url || result.fileUrl || dataUrl;
+            setEwayBillUrl(url);
+            onUpdate(data.id, 'eway_bill_url', url);
+        } catch (err) {
+            console.error('E-way Bill Upload Error:', err);
+            alert('Upload failed: ' + err.message);
+        } finally {
+            setIsEwayUploading(false);
+        }
+    };
+
+    const handleSubmit = async () => {
+        setIsSubmitting(true);
+        try {
+            await onUpdate(data.id, 'submitted_at', new Date().toISOString());
+        } catch (e) {
+            console.error('Submit failed:', e);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <>
             {/* COLLAPSED CARD (Grid Item) */}
             <div
                 className={cn(
                     "bg-white rounded-xl border-2 shadow-sm hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden h-full flex flex-col",
-                    isSent ? "border-[#d4de47]" : isProcessed ? "border-blue-500/50 hover:border-blue-500" : "border-red-500/50 hover:border-red-500"
+                    isSent ? "border-[#d4de47]" : isEwayPending ? "border-amber-400/60 hover:border-amber-500" : isProcessed ? "border-blue-500/50 hover:border-blue-500" : "border-red-500/50 hover:border-red-500"
                 )}
                 onClick={() => setIsOpen(true)}
             >
                 {/* Status Indicator Bar */}
                 <div className={cn(
                     "h-1 w-full",
-                    isSent ? "bg-[#d4de47]" : isProcessed ? "bg-blue-500" : "bg-red-500"
+                    isSent ? "bg-[#d4de47]" : isEwayPending ? "bg-amber-400" : isProcessed ? "bg-blue-500" : "bg-red-500"
                 )} />
 
                 <div className="p-4 flex flex-col gap-3 h-full">
@@ -176,6 +224,10 @@ export default function DispatchCard({
                             ) : isProcessed ? (
                                 <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black border border-blue-100 flex items-center gap-1 uppercase tracking-tighter">
                                     <Truck size={8} /> Processed
+                                </span>
+                            ) : isEwayPending ? (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-black border border-amber-100 flex items-center gap-1 uppercase tracking-tighter">
+                                    <AlertTriangle size={8} /> E-way Needed
                                 </span>
                             ) : (
                                 <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-[10px] font-black border border-red-100 flex items-center gap-1 uppercase tracking-tighter">
@@ -373,7 +425,7 @@ export default function DispatchCard({
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between pb-1">
                                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Logistics & Tracking</h4>
-                                                {!isSent && <span className="px-2 py-0.5 bg-red-600 text-white rounded text-[9px] font-black uppercase tracking-widest animate-pulse">Action Required</span>}
+                                                {!isSent && <span className="px-2 py-0.5 bg-red-600 text-white rounded text-[9px] font-black uppercase tracking-widest animate-pulse">{isPending ? 'Courier Required' : isEwayPending ? 'E-way Bill Required' : 'Action Required'}</span>}
                                             </div>
 
                                             {/* LIVE PREVIEW WITH ZOOM */}
@@ -494,12 +546,44 @@ export default function DispatchCard({
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* E-way Bill Upload */}
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[9px] font-black uppercase text-gray-900 tracking-widest flex items-center gap-1">
+                                                        E-way Bill
+                                                        {requiresEway && <span className="px-1.5 py-0.5 bg-amber-500 text-white text-[7px] font-black rounded uppercase">Required</span>}
+                                                    </label>
+                                                    {(ewayBillUrl || data.eway_bill_url) && (
+                                                        <a href={ewayBillUrl || data.eway_bill_url} target="_blank" rel="noreferrer" className="text-[9px] font-black text-blue-600 hover:underline flex items-center gap-1">
+                                                            <ExternalLink size={9} /> View
+                                                        </a>
+                                                    )}
+                                                </div>
+                                                <input type="file" ref={ewayFileRef} className="hidden" accept="image/*,application/pdf" onChange={handleEwayUpload} />
+                                                <button
+                                                    onClick={() => ewayFileRef.current?.click()}
+                                                    disabled={isEwayUploading || !requiresEway}
+                                                    title={!requiresEway ? 'Only required for invoices > ₹50,000' : ''}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm",
+                                                        requiresEway
+                                                            ? (ewayBillUrl || data.eway_bill_url)
+                                                                ? "bg-green-900 text-white hover:bg-green-800"
+                                                                : "bg-amber-500 text-white hover:bg-amber-600"
+                                                            : "bg-gray-400/40 text-gray-500 cursor-not-allowed"
+                                                    )}
+                                                >
+                                                    {isEwayUploading ? <Loader2 size={12} className="animate-spin" /> : (ewayBillUrl || data.eway_bill_url) ? <CheckCircle2 size={12} /> : <Upload size={12} />}
+                                                    {isEwayUploading ? 'Uploading...' : (ewayBillUrl || data.eway_bill_url) ? 'E-way Bill Uploaded ✓' : requiresEway ? 'Upload E-way Bill' : 'Not Required (< ₹50k)'}
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div className="h-px bg-gray-900/10 w-full mb-6"></div>
 
                                         <div className="space-y-4">
-                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Client Communication</h4>
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900">Client Communication <span className="text-[8px] font-bold text-gray-400 normal-case tracking-normal ml-1">(Optional)</span></h4>
                                             <div className="space-y-2">
                                                 <label className="text-[9px] font-black uppercase text-gray-900 tracking-widest">Destination Inbox</label>
                                                 <div className="flex gap-2">
@@ -509,37 +593,56 @@ export default function DispatchCard({
                                                         onChange={handleEmailUpdate}
                                                         onBlur={handleSaveEmail}
                                                         className="flex-1 bg-white/50 border border-gray-900/10 rounded-xl px-4 py-3 text-sm font-black text-gray-900 focus:bg-white outline-none transition-all placeholder:text-gray-400"
-                                                        placeholder="client@email.com"
+                                                        placeholder="client@email.com (optional)"
                                                     />
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 gap-3 pt-4">
-                                            <input
-                                                type="file"
-                                                ref={fileInputRef}
-                                                className="hidden"
-                                                accept="image/*,application/pdf"
-                                                onChange={handleOcrUpload}
-                                            />
+                                        <div className="grid grid-cols-1 gap-3 pt-2">
+                                            <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleOcrUpload} />
+
+                                            {/* Submit Button (Courier + Eway, no email needed) */}
+                                            {!data.submitted_at ? (
+                                                <button
+                                                    onClick={handleSubmit}
+                                                    disabled={isSubmitting || !isComplete}
+                                                    title={!isComplete ? 'Upload courier slip' + (requiresEway ? ' and E-way bill' : '') + ' first' : ''}
+                                                    className={cn(
+                                                        "flex items-center justify-center gap-2 py-3 px-2 rounded-2xl text-[10px] sm:text-[11px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 w-full border",
+                                                        isComplete
+                                                            ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-700"
+                                                            : "bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed"
+                                                    )}
+                                                >
+                                                    {isSubmitting ? <Loader2 size={14} className="shrink-0 animate-spin" /> : <Check size={14} className="shrink-0" />}
+                                                    {isSubmitting ? 'Submitting...' : 'Submit (Courier Done)'}
+                                                </button>
+                                            ) : (
+                                                <div className="flex items-center justify-center gap-2 py-2.5 px-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl text-[10px] font-black uppercase tracking-widest">
+                                                    <CheckCircle2 size={13} className="shrink-0" /> Submitted
+                                                </div>
+                                            )}
+
+                                            {/* Email Button (Optional) */}
                                             {!isSent ? (
                                                 <button
                                                     onClick={handleSendEmail}
-                                                    disabled={isEmailLoading || isEmailSuccess}
+                                                    disabled={isEmailLoading || isEmailSuccess || !email}
+                                                    title={!email ? 'Enter client email first' : ''}
                                                     className={cn(
                                                         "flex items-center justify-center gap-2 py-3 px-2 rounded-2xl text-[10px] sm:text-[11px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 w-full",
                                                         isEmailSuccess
                                                             ? "bg-green-500 hover:bg-green-600 text-white"
-                                                            : "bg-gray-900 hover:bg-gray-800 text-white disabled:opacity-50"
+                                                            : "bg-gray-900 hover:bg-gray-800 text-white disabled:opacity-40"
                                                     )}
                                                 >
                                                     {isEmailLoading ? <Loader2 size={14} className="shrink-0 animate-spin" /> : (isEmailSuccess ? <Check size={14} className="shrink-0" /> : <Mail size={14} className="shrink-0" />)}
-                                                    {isEmailLoading ? "Sending..." : (isEmailSuccess ? "Sent" : "Send Dispatch Email")}
+                                                    {isEmailLoading ? "Sending..." : (isEmailSuccess ? "Sent" : "Send Dispatch Email (Optional)")}
                                                 </button>
                                             ) : (
                                                 <div className="flex items-center justify-center gap-2 py-3 px-2 bg-[#d4de47]/50 border border-brand-hover text-gray-900 rounded-2xl text-[10px] font-black uppercase tracking-widest">
-                                                    <Mail size={13} className="shrink-0" /> Sent
+                                                    <Mail size={13} className="shrink-0" /> Email Sent
                                                 </div>
                                             )}
                                         </div>

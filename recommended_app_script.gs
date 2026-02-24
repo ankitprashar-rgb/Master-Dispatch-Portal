@@ -277,6 +277,41 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
   
+  if (action === 'upload_file') {
+    try {
+      var filename = postData.filename || 'document.pdf';
+      var dataUrl  = postData.dataUrl  || '';
+      var folder   = postData.folder   || 'uploads';
+
+      if (!dataUrl) throw new Error('No file data provided');
+
+      // Decode base64 DATA URL (strip header)
+      var base64Data = dataUrl.indexOf('base64,') > -1 ? dataUrl.split('base64,')[1] : dataUrl;
+      var mimeType   = dataUrl.indexOf('pdf') > -1 ? 'application/pdf' : 'image/jpeg';
+      var bytes      = Utilities.base64Decode(base64Data);
+      var blob       = Utilities.newBlob(bytes, mimeType, filename);
+
+      // Find or create parent folder (same as courier slips)
+      var parentFolderName = 'IdeaToWorks Courier Slips';
+      var parentFolders = DriveApp.getFoldersByName(parentFolderName);
+      var parentFolder  = parentFolders.hasNext() ? parentFolders.next() : DriveApp.createFolder(parentFolderName);
+
+      // Sub-folder for this file type
+      var subFolders = parentFolder.getFoldersByName(folder);
+      var subFolder  = subFolders.hasNext() ? subFolders.next() : parentFolder.createFolder(folder);
+
+      var file = subFolder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      var fileUrl = 'https://drive.google.com/file/d/' + file.getId() + '/view?usp=sharing';
+
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, url: fileUrl }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (uploadErr) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(uploadErr) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   return ContentService.createTextOutput(JSON.stringify({ status: 'success' }))
     .setMimeType(ContentService.MimeType.JSON);
 }

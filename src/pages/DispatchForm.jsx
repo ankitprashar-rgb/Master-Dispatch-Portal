@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Plus, Trash2, Printer, Search, Loader2, FileDown, Pencil } from 'lucide-react';
+import { Upload, Plus, Trash2, Printer, Search, Loader2, FileDown, Pencil, CheckCircle2, AlertTriangle, ZoomIn } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import DispatchPreview from '../components/dispatch/DispatchPreview';
@@ -17,6 +17,10 @@ export default function DispatchForm() {
     const [stats, setStats] = useState({}); // { itemDesc: { dispatched: X, master: Y } }
     const [isOcrRunning, setIsOcrRunning] = useState(false);
     const [ocrStatus, setOcrStatus] = useState('');
+    const [invoicePreviewUrl, setInvoicePreviewUrl] = useState(null);
+    const [invoiceIsImage, setInvoiceIsImage] = useState(true);
+    const [ocrVerified, setOcrVerified] = useState(true); // true until OCR runs, requires re-confirm after each scan
+    const [ocrItemsFound, setOcrItemsFound] = useState(false);
     const fileInputRef = useRef(null);
     const [showPreview, setShowPreview] = useState(false);
 
@@ -206,12 +210,16 @@ export default function DispatchForm() {
                     }));
                     setItems(mappedItems);
                     setOcrStatus(`OCR Successful! (${result.ocr_method || 'v6'})`);
+                    setOcrVerified(false); // Require user to tick the disclaimer
+                    setOcrItemsFound(true);
                 } else if (result.text) {
                     const snippet = result.text.substring(0, 30).replace(/\n/g, ' ') + '...';
                     setOcrStatus(`OCR Done (No items found in: ${snippet})`);
                     console.log("Raw OCR Text:", result.text);
+                    setOcrItemsFound(false);
                 } else {
                     setOcrStatus('OCR completed with no specific results');
+                    setOcrItemsFound(false);
                 }
             } else {
                 throw new Error(result.message || result.msg || 'OCR failed');
@@ -229,8 +237,14 @@ export default function DispatchForm() {
         const file = e.target.files[0];
         if (!file) return;
 
+        const isPdf = file.type === 'application/pdf';
+        setInvoiceIsImage(!isPdf);
+        setOcrVerified(true); // Reset — will be set false again once OCR succeeds
+        setOcrItemsFound(false);
+
         const reader = new FileReader();
         reader.onload = (event) => {
+            setInvoicePreviewUrl(event.target.result);
             runOcr(file.name, event.target.result);
         };
         reader.readAsDataURL(file);
@@ -478,7 +492,7 @@ export default function DispatchForm() {
                     <div
                         onClick={() => !isOcrRunning && fileInputRef.current?.click()}
                         className={cn(
-                            "p-4 flex flex-col items-center justify-center h-48 border-2 border-dashed rounded-lg m-4 transition-colors cursor-pointer group",
+                            "p-4 flex flex-col items-center justify-center h-28 border-2 border-dashed rounded-lg m-4 mb-0 transition-colors cursor-pointer group",
                             isOcrRunning ? "bg-gray-100 border-brand" : "bg-gray-50 border-gray-100 hover:border-brand"
                         )}
                     >
@@ -501,6 +515,31 @@ export default function DispatchForm() {
                             className="hidden"
                         />
                     </div>
+
+                    {/* Invoice Preview with Hover Zoom */}
+                    {invoicePreviewUrl && !isOcrRunning && (
+                        <div className="mx-4 mb-4 relative rounded-lg overflow-hidden border border-gray-200 group/inv bg-gray-100" style={{ height: '140px' }}>
+                            {invoiceIsImage ? (
+                                <img
+                                    src={invoicePreviewUrl}
+                                    alt="Invoice Preview"
+                                    className="w-full h-full object-contain transition-transform duration-500 group-hover/inv:scale-[2.5] cursor-zoom-in"
+                                    onMouseMove={(e) => {
+                                        const img = e.currentTarget;
+                                        const rect = img.getBoundingClientRect();
+                                        const x = ((e.clientX - rect.left) / rect.width) * 100;
+                                        const y = ((e.clientY - rect.top) / rect.height) * 100;
+                                        img.style.transformOrigin = `${x}% ${y}%`;
+                                    }}
+                                />
+                            ) : (
+                                <iframe src={invoicePreviewUrl} title="Invoice PDF" className="w-full h-full border-0" />
+                            )}
+                            <div className="absolute bottom-1 right-1 px-2 py-0.5 bg-black/50 text-white text-[8px] font-bold rounded opacity-0 group-hover/inv:opacity-100 transition-opacity flex items-center gap-1 pointer-events-none">
+                                <ZoomIn size={9} /> Hover to Zoom
+                            </div>
+                        </div>
+                    )}
                 </div>
 
             </div>
@@ -637,18 +676,59 @@ export default function DispatchForm() {
                 </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
+            {/* E-way Bill Warning */}
+            {totals.subtotal > 50000 && (
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3">
+                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                        <p className="text-xs font-black text-amber-800">Invoice value is more than ₹50,000/-.  Please provide E-way Bill.</p>
+                        <p className="text-[10px] text-amber-600 mt-0.5">Upload the E-way Bill document in the Tracking section after saving this dispatch.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* OCR Accuracy Disclaimer */}
+            {ocrItemsFound && (
+                <div className={cn(
+                    "flex items-start gap-3 rounded-xl px-4 py-3 border transition-colors",
+                    ocrVerified ? "bg-green-50 border-green-300" : "bg-blue-50 border-blue-300"
+                )}>
+                    {ocrVerified ? (
+                        <CheckCircle2 size={16} className="text-green-600 shrink-0 mt-0.5" />
+                    ) : (
+                        <AlertTriangle size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                        <p className="text-xs font-black text-gray-800">OCR parsing is not 100% accurate. Please verify and edit details accordingly.</p>
+                        {!ocrVerified && <p className="text-[10px] text-blue-600 mt-0.5">Review the line items above and tick the checkbox to confirm they look correct.</p>}
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer shrink-0">
+                        <input
+                            type="checkbox"
+                            checked={ocrVerified}
+                            onChange={(e) => setOcrVerified(e.target.checked)}
+                            className="w-4 h-4 accent-green-600 cursor-pointer"
+                        />
+                        <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">{ocrVerified ? 'Confirmed' : 'I Confirm'}</span>
+                    </label>
+                </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row justify-end gap-3">
                 <button
                     onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full border border-gray-300 bg-white text-gray-700 text-xs font-bold hover:bg-gray-50 disabled:opacity-50 w-full sm:w-auto shadow-sm"
+                    disabled={isSaving || !ocrVerified}
+                    title={!ocrVerified ? 'Please confirm OCR accuracy first' : ''}
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full border border-gray-300 bg-white text-gray-700 text-xs font-bold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto shadow-sm"
                 >
                     {isSaving ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
                     {isSaving ? 'Saving...' : 'Save Dispatch'}
                 </button>
                 <button
                     onClick={() => setShowPreview(true)}
-                    className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-gray-900 text-white border border-transparent text-xs font-bold hover:bg-gray-800 shadow-lg w-full sm:w-auto"
+                    disabled={!ocrVerified}
+                    title={!ocrVerified ? 'Please confirm OCR accuracy first' : ''}
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-full bg-gray-900 text-white border border-transparent text-xs font-bold hover:bg-gray-800 shadow-lg w-full sm:w-auto disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <Printer size={16} />
                     Generate Dispatch PDF

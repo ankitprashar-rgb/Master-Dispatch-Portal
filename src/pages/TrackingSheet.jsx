@@ -109,8 +109,16 @@ export default function TrackingSheet() {
             d.dispatch_id?.toLowerCase().includes(search)
         );
 
-        // Show all if toggled, otherwise only show pending (no email sent)
-        const matchesStatus = showAll ? true : !d.email_sent_at;
+        // Completion logic: courier done + eway done (if required)
+        const items = d.dispatch_data?.items || d.dispatch_items || [];
+        const total = items.reduce((s, i) => s + (Number(i.amount || i.amount) || 0), 0);
+        const requiresEway = total > 50000;
+        const courierDone = !!(d.tracking_id || d.courier_company || d.courier_slip_url);
+        const ewayDone = !requiresEway || !!d.eway_bill_url;
+        const isComplete = courierDone && ewayDone;
+
+        // Show all if toggled, otherwise only show incomplete dispatches
+        const matchesStatus = showAll ? true : !isComplete;
 
         return matchesSearch && matchesStatus;
     });
