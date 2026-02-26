@@ -862,7 +862,8 @@ function checkAndAlertPendingDispatches() {
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   var cutoffIso = twoDaysAgo.toISOString();
   
-  var path = 'dispatches?email_sent_at=is.null&date=lt.' + encodeURIComponent(cutoffIso) + '&select=*&is_archived=eq.false';
+  // Fetch dispatches missing emails AND from Jan 2026 onwards
+  var path = 'dispatches?email_sent_at=is.null&date=gte.2026-01-01&date=lt.' + encodeURIComponent(cutoffIso) + '&select=*&is_archived=eq.false';
   
   var result = supabaseRestCall(SUPABASE_URL, SUPABASE_ANON_KEY, path, 'GET', null);
   
@@ -871,10 +872,17 @@ function checkAndAlertPendingDispatches() {
     return;
   }
   
-  var pendingDispatches = result.data || [];
+  var rawDispatches = result.data || [];
+
+  // Filter out dispatches that only lack emails. 
+  // If it has a slip, exclude it. We ONLY want items missing BOTH slip & email.
+  var pendingDispatches = rawDispatches.filter(function(d) {
+    var hasSlip = d.courier_slip_url && String(d.courier_slip_url).trim().length > 0;
+    return !hasSlip;
+  });
   
   if (pendingDispatches.length === 0) {
-    Logger.log("No pending dispatches found older than 48 hours. No email sent.");
+    Logger.log("No strictly pending dispatches (missing both slip & email from >= Jan 2026) found older than 48 hours. No email sent.");
     return;
   }
   
