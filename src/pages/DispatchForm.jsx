@@ -3,6 +3,7 @@ import { Upload, Plus, Trash2, Printer, Search, Loader2, FileDown, Pencil, Check
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import DispatchPreview from '../components/dispatch/DispatchPreview';
+import { notifyDispatchEntry } from '../services/telegram';
 
 export default function DispatchForm() {
     const [items, setItems] = useState([{ id: Date.now(), desc: '', qty: '', amount: '', masterQty: 0, dispatchedSoFar: 0 }]);
@@ -308,6 +309,13 @@ export default function DispatchForm() {
                     mode: 'no-cors',
                     body: JSON.stringify({ action: 'create_dispatch', data: dispatchRecord })
                 });
+            }
+
+            // 4. Send Telegram Notification
+            try {
+                await notifyDispatchEntry(dispatchRecord);
+            } catch (tgErr) {
+                console.error('Telegram notification failed:', tgErr);
             }
 
             alert('Dispatch saved successfully! ID: ' + dispatch_id);
