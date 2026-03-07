@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, Download, Mail, ExternalLink, Paperclip, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import DispatchCard from '../components/dispatch/DispatchCard';
 import DispatchPreview from '../components/dispatch/DispatchPreview';
 
@@ -19,7 +19,7 @@ export default function TrackingSheet() {
         try {
             let query = supabase
                 .from('dispatches')
-                .select('*')
+                .select('*, dispatch_items(*)')
                 .order('date', { ascending: false });
 
             if (dateRange.from) query = query.gte('date', dateRange.from);
@@ -97,8 +97,58 @@ export default function TrackingSheet() {
             throw error;
         }
     };
-
     const [showAll, setShowAll] = useState(false);
+
+    const applyDatePreset = (preset) => {
+        const today = new Date();
+        if (preset === 'last_month') {
+            const lastMonth = subMonths(today, 1);
+            setDateRange({
+                from: format(startOfMonth(lastMonth), 'yyyy-MM-dd'),
+                to: format(endOfMonth(lastMonth), 'yyyy-MM-dd')
+            });
+        } else if (preset === 'this_month') {
+            setDateRange({
+                from: format(startOfMonth(today), 'yyyy-MM-dd'),
+                to: format(endOfMonth(today), 'yyyy-MM-dd')
+            });
+        } else if (preset === 'clear') {
+            setDateRange({ from: '', to: '' });
+        }
+    };
+
+    const handleExport = () => {
+        if (filteredData.length === 0) {
+            alert("No records to export.");
+            return;
+        }
+
+        const headers = ["DATE", "CLIENT NAME", "CLIENT EMAIL", "SHIPPING ADDRESS", "PROJECT NAME", "IN LINE PRODUCTS AND THEIR QTY", "COURIER SLIP DETAILS"];
+
+        const rows = filteredData.map(d => {
+            const items = d.dispatch_items || d.items || d.dispatch_data?.items || [];
+            const itemStr = items.map(i => `${i.desc || i.description || ''} (${i.qty || i.quantity || 0})`).join(', ');
+
+            const courierStr = [d.tracking_id || d.dispatch_data?.trackingId, d.courier_company || d.dispatch_data?.courierCompany].filter(Boolean).join(' - ');
+
+            return [
+                format(new Date(d.date), 'dd/MM/yyyy'),
+                `"${d.client_name || ''}"`,
+                `"${d.ship_to_email || d.dispatch_data?.shipToEmail || d.client_email || ''}"`,
+                `"${(d.ship_to_address || d.dispatch_data?.shipToAddress || '').replace(/"/g, '""')}"`,
+                `"${d.project_name || ''}"`,
+                `"${itemStr.replace(/"/g, '""')}"`,
+                `"${courierStr.replace(/"/g, '""')}"`
+            ];
+        });
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `tracking_export_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+        link.click();
+    };
 
     // Filter Logic
     const filteredData = dispatches.filter(d => {
@@ -110,7 +160,7 @@ export default function TrackingSheet() {
         );
 
         // Completion logic: courier done + eway done (if required)
-        const items = d.dispatch_data?.items || d.dispatch_items || [];
+        const items = d.dispatch_items || d.items || d.dispatch_data?.items || [];
         const total = items.reduce((s, i) => s + (Number(i.amount || i.amount) || 0), 0);
         const requiresEway = total > 50000;
         const courierDone = !!(d.tracking_id || d.courier_company || d.courier_slip_url);
@@ -156,6 +206,20 @@ export default function TrackingSheet() {
                         </div>
                     </div>
                     <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-gray-600 block">Preset</label>
+                        <select
+                            onChange={(e) => applyDatePreset(e.target.value)}
+                            className="text-xs p-2 border border-gray-300 rounded-md bg-gray-50 focus:bg-white outline-none"
+                            defaultValue=""
+                        >
+                            <option value="" disabled>Select...</option>
+                            <option value="this_month">This Month</option>
+                            <option value="last_month">Last Month</option>
+                            <option value="clear">Clear Dates</option>
+                        </select>
+                    </div>
+
+                    <div className="space-y-1">
                         <label className="text-[10px] font-semibold text-gray-600 block">From Date</label>
                         <input
                             type="date"
@@ -187,12 +251,20 @@ export default function TrackingSheet() {
                         </label>
                     </div>
 
-                    <button
-                        onClick={fetchDispatches}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-brand text-gray-900 text-xs font-bold hover:bg-brand-hover shadow-sm ml-auto"
-                    >
-                        <Filter size={14} /> Apply Filter
-                    </button>
+                    <div className="flex items-center gap-2 ml-auto">
+                        <button
+                            onClick={handleExport}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-xs font-bold hover:bg-gray-50 shadow-sm"
+                        >
+                            <Download size={14} /> Export CSV
+                        </button>
+                        <button
+                            onClick={fetchDispatches}
+                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-brand text-gray-900 text-xs font-bold hover:bg-brand-hover shadow-sm"
+                        >
+                            <Filter size={14} /> Apply Filter
+                        </button>
+                    </div>
                 </div>
 
                 {/* Card List View */}

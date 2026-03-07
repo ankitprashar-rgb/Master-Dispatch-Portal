@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../../lib/utils';
@@ -6,30 +6,58 @@ import { cn } from '../../lib/utils';
 const IDE_LOGO = "https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png";
 
 export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
+    // Add escape key listener to close the preview
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
     if (!data) return null;
 
     // Unified Items Logic (Prioritize Form -> Relational -> JSONB)
     let rawItems = [];
-    if (data.items && data.items.length > 0) {
-        rawItems = data.items.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, rate: i.rate || (Number(i.qty) > 0 ? Number(i.amount) / Number(i.qty) : 0) }));
-    } else if (data.dispatch_items && data.dispatch_items.length > 0) {
-        rawItems = data.dispatch_items.map(i => ({
-            desc: i.description,
-            qty: i.quantity,
-            amount: i.amount,
-            rate: i.quantity > 0 ? i.amount / i.quantity : 0
-        }));
-    } else if (data.dispatch_data?.items && data.dispatch_data.items.length > 0) {
-        rawItems = data.dispatch_data.items.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, rate: i.rate || (Number(i.qty) > 0 ? Number(i.amount) / Number(i.qty) : 0) }));
+    // Consolidate items from all possible sources, prioritizing `data.items`
+    const sourceItems = data.items || data.dispatch_items || data.dispatch_data?.items || [];
+
+    if (sourceItems.length > 0) {
+        // Determine the structure of the items and map accordingly
+        if (data.items) { // This implies `data.items` was the source, which has `desc`, `qty`, `amount`, `rate`, `unit`
+            rawItems = sourceItems.map(i => ({
+                desc: i.desc,
+                qty: i.qty,
+                amount: i.amount,
+                unit: i.unit,
+                rate: i.rate || (Number(i.qty) > 0 ? Number(i.amount) / Number(i.qty) : 0)
+            }));
+        } else if (data.dispatch_items) { // This implies `data.dispatch_items` was the source, which has `description`, `quantity`, `unit`
+            rawItems = sourceItems.map(i => ({
+                desc: i.description,
+                qty: i.quantity,
+                amount: i.amount,
+                unit: i.unit,
+                rate: i.quantity > 0 ? i.amount / i.quantity : 0
+            }));
+        } else if (data.dispatch_data?.items) { // This implies `data.dispatch_data.items` was the source
+            rawItems = sourceItems.map(i => ({
+                desc: i.desc,
+                qty: i.qty,
+                amount: i.amount,
+                unit: i.unit,
+                rate: i.rate || (Number(i.qty) > 0 ? Number(i.amount) / Number(i.qty) : 0)
+            }));
+        }
     }
 
     // Filter out items with 0 quantity
     const items = rawItems.filter(i => Number(i.qty) > 0);
 
-    const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-    const subTotal = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-    const gstAmount = subTotal * 0.18;
-    const totalAmount = subTotal + gstAmount;
+    const totalQty = data.total_qty || items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+    const subTotal = data.subtotal || items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const gstAmount = data.gst || (subTotal * 0.18);
+    const totalAmount = data.total_amount || (subTotal + gstAmount);
 
     const handlePrint = () => {
         const printSource = document.querySelector('.print-area');
@@ -62,7 +90,7 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
                     print-color-adjust: exact !important;
                     color-adjust: exact !important;
                 }
-                @page { size: A4; margin: 10mm; }
+                @page { size: A4; margin: 0; }
             }
         `;
 
@@ -100,84 +128,9 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
 
             {/* A4 Page Container - this is what gets printed */}
             <div className="bg-[#D4DE47] p-2 overflow-y-auto max-h-screen print-area">
-                <div className="page-container bg-white w-[210mm] min-h-[297mm] mx-auto p-[10mm] shadow-2xl rounded-lg">
 
-                    {/* SECTION 1: SHIPPING LABEL (TOP HALF) */}
-                    <div className="border border-gray-200 rounded-xl p-6 relative">
-                        {/* Header */}
-                        <div className="flex justify-between items-start border-b-4 border-[#D4DE47] pb-4 mb-4">
-                            <img src={IDE_LOGO} alt="IDE Logo" className="h-12 w-auto" />
-                            <div className="text-right text-[11px] leading-tight">
-                                <p className="font-bold text-sm">Focus Auto Designworks Pvt. Ltd.</p>
-                                <p>192, Sector 27, Gurugram, Haryana – 122009</p>
-                                <p>+91 9717498343 | +91 9910027535</p>
-                                <p className="text-gray-500">www.IDEautoworks.com</p>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-black uppercase tracking-widest text-gray-900">Shipping Label</h3>
-                            <span className="px-3 py-1 bg-[#D4DE47] rounded-full text-[10px] font-black uppercase">Dispatch Copy</span>
-                        </div>
-
-                        <div className="flex justify-between text-xs font-bold mb-4">
-                            <p>DISPATCH ID: <span className="font-black underline">{data.dispatch_id}</span></p>
-                            <p>DATE: {format(new Date(data.date), 'dd/MM/yyyy')}</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-6 mb-6">
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 font-heading">Deliver To</p>
-                                <p className="font-black text-sm uppercase">{data.client_name}</p>
-                                <div className="text-xs text-gray-600 mt-1 whitespace-pre-line font-medium leading-relaxed">
-                                    {data.ship_to_address || data.dispatch_data?.shipToAddress}
-                                </div>
-                            </div>
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 font-medium font-headings">
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 font-heading">Contact Info</p>
-                                <p className="text-xs">POC: <span className="font-bold">{data.ship_to_poc || data.dispatch_data?.shipToPoc || 'N/A'}</span></p>
-                                <p className="text-xs mt-1">PHONE: <span className="font-bold">{data.ship_to_phone || data.dispatch_data?.shipToPhone || 'N/A'}</span></p>
-                                <p className="text-xs mt-1">EMAIL: <span className="font-bold text-blue-600">{data.ship_to_email || data.dispatch_data?.shipToEmail || data.client_email || 'N/A'}</span></p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Items Manifest</h4>
-                            <table className="w-full text-xs border-collapse">
-                                <thead>
-                                    <tr className="bg-[#D4DE47]">
-                                        <th className="border border-gray-200 p-2 text-left font-black uppercase">Description</th>
-                                        <th className="border border-gray-200 p-2 text-right w-20 font-black uppercase">Qty</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {items.map((item, idx) => (
-                                        <tr key={idx}>
-                                            <td className="border border-gray-200 p-2 font-bold">{item.desc}</td>
-                                            <td className="border border-gray-200 p-2 text-right font-black">{item.qty}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                                <tfoot className="bg-gray-50 font-black">
-                                    <tr>
-                                        <td className="border border-gray-200 p-2 text-right uppercase tracking-[0.2em] text-gray-400">Total Units</td>
-                                        <td className="border border-gray-200 p-2 text-right">{totalQty}</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-
-                        <div className="mt-4 text-[10px] text-gray-400 leading-relaxed italic border-t border-gray-100 pt-4">
-                            <strong>Note:</strong> This is a shipping label and not a tax invoice. Please inspect the package on delivery and report any damage within 24 hours.
-                        </div>
-                    </div>
-
-                    {/* TEAR LINE */}
-                    <div className="my-8 border-t-2 border-dashed border-gray-300 relative">
-                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-4 text-[10px] font-black uppercase tracking-[0.3em] text-gray-300">Cut / Tear Here</span>
-                    </div>
-
-                    {/* SECTION 2: DELIVERY CHALLAN (BOTTOM HALF) */}
+                {/* SECTION 1: DELIVERY CHALLAN (NOW FIRST) */}
+                <div className="page-container bg-white w-[210mm] min-h-[297mm] mx-auto p-[10mm] shadow-2xl rounded-lg mb-8 print:mb-0">
                     <div className="border border-gray-200 rounded-xl p-6">
                         {/* Header */}
                         <div className="flex justify-between items-start border-b-4 border-[#D4DE47] pb-4 mb-4">
@@ -247,7 +200,10 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
                                         <tr key={idx} className="border-b border-gray-100">
                                             <td className="px-4 py-2.5 text-gray-400 font-bold">{idx + 1}</td>
                                             <td className="px-4 py-2.5 font-bold">{item.desc}</td>
-                                            <td className="px-4 py-2.5 text-right font-black">{item.qty}</td>
+                                            <td className="px-4 py-2.5 text-right font-black leading-tight">
+                                                {item.qty}<br />
+                                                <span className="text-[9px] text-gray-400 font-normal uppercase tracking-tighter">{item.unit || ''}</span>
+                                            </td>
                                             <td className="px-4 py-2.5 text-right font-medium text-gray-500">₹{parseFloat(item.rate || 0).toLocaleString()}</td>
                                             <td className="px-4 py-2.5 text-right font-black text-gray-900">₹{parseFloat(item.amount || 0).toLocaleString()}</td>
                                         </tr>
@@ -297,6 +253,83 @@ export default function DispatchPreview({ data, onClose, onPrintSuccess }) {
 
                     </div>
                 </div>
+
+                {/* SECTION 2: SHIPPING LABEL (NOW SECOND, ON SEPARATE PAGE) */}
+                <div className="page-container bg-white w-[210mm] min-h-[297mm] mx-auto p-[10mm] shadow-2xl rounded-lg" style={{ pageBreakBefore: 'always' }}>
+
+                    <div className="border border-gray-200 rounded-xl p-6 relative">
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b-4 border-[#D4DE47] pb-4 mb-4">
+                            <img src={IDE_LOGO} alt="IDE Logo" className="h-12 w-auto" />
+                            <div className="text-right text-[11px] leading-tight">
+                                <p className="font-bold text-sm">Focus Auto Designworks Pvt. Ltd.</p>
+                                <p>192, Sector 27, Gurugram, Haryana – 122009</p>
+                                <p>+91 9717498343 | +91 9910027535</p>
+                                <p className="text-gray-500">www.IDEautoworks.com</p>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-black uppercase tracking-widest text-gray-900">Shipping Label</h3>
+                            <span className="px-3 py-1 bg-[#D4DE47] rounded-full text-[10px] font-black uppercase">Dispatch Copy</span>
+                        </div>
+
+                        <div className="flex justify-between text-xs font-bold mb-4">
+                            <p>DISPATCH ID: <span className="font-black underline">{data.dispatch_id}</span></p>
+                            <p>DATE: {format(new Date(data.date), 'dd/MM/yyyy')}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6 mb-6">
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 font-heading">Deliver To</p>
+                                <p className="font-black text-sm uppercase">{data.client_name}</p>
+                                <div className="text-xs text-gray-600 mt-1 whitespace-pre-line font-medium leading-relaxed">
+                                    {data.ship_to_address || data.dispatch_data?.shipToAddress}
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 font-medium font-headings">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 font-heading">Contact Info</p>
+                                <p className="text-xs">POC: <span className="font-bold">{data.ship_to_poc || data.dispatch_data?.shipToPoc || 'N/A'}</span></p>
+                                <p className="text-xs mt-1">PHONE: <span className="font-bold">{data.ship_to_phone || data.dispatch_data?.shipToPhone || 'N/A'}</span></p>
+                                <p className="text-xs mt-1">EMAIL: <span className="font-bold text-blue-600">{data.ship_to_email || data.dispatch_data?.shipToEmail || data.client_email || 'N/A'}</span></p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Items Manifest</h4>
+                            <table className="w-full text-xs border-collapse">
+                                <thead>
+                                    <tr className="bg-[#D4DE47]">
+                                        <th className="border border-gray-200 p-2 text-left font-black uppercase">Description</th>
+                                        <th className="border border-gray-200 p-2 text-right w-20 font-black uppercase">Qty</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {items.map((item, idx) => (
+                                        <tr key={idx}>
+                                            <td className="border border-gray-200 p-2 font-bold">{item.desc}</td>
+                                            <td className="border border-gray-200 p-2 text-right font-black leading-tight">
+                                                {item.qty}<br />
+                                                <span className="text-[9px] text-gray-400 font-normal uppercase tracking-tighter">{item.unit || ''}</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-gray-50 font-black">
+                                    <tr>
+                                        <td className="border border-gray-200 p-2 text-right uppercase tracking-[0.2em] text-gray-400">Total Units</td>
+                                        <td className="border border-gray-200 p-2 text-right">{totalQty}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        <div className="mt-4 text-[10px] text-gray-400 leading-relaxed italic border-t border-gray-100 pt-4">
+                            <strong>Note:</strong> This is a shipping label and not a tax invoice. Please inspect the package on delivery and report any damage within 24 hours.
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
         </div>

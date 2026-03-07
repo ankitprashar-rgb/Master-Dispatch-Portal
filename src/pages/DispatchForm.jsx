@@ -6,7 +6,7 @@ import DispatchPreview from '../components/dispatch/DispatchPreview';
 import { notifyDispatchEntry } from '../services/telegram';
 
 export default function DispatchForm() {
-    const [items, setItems] = useState([{ id: Date.now(), desc: '', qty: '', amount: '', masterQty: 0, dispatchedSoFar: 0 }]);
+    const [items, setItems] = useState([{ id: Date.now(), desc: '', qty: '', amount: '', unit: '', masterQty: 0, dispatchedSoFar: 0, pendingQty: 0 }]);
     const [shipToMode, setShipToMode] = useState('client');
 
     // Data State
@@ -29,11 +29,13 @@ export default function DispatchForm() {
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         clientName: '',
+        clientId: null,
         projectName: '',
         shipToAddress: '',
         shipToPoc: '',
         shipToPhone: '',
-        shipToEmail: ''
+        shipToEmail: '',
+        shipToInstallerId: null
     });
 
     // Fetch Clients & Installers on Mount
@@ -63,6 +65,7 @@ export default function DispatchForm() {
         setFormData(prev => ({
             ...prev,
             clientName: val,
+            clientId: found?.id || null,
             projectName: '', // Reset project
             shipToAddress: shipToMode === 'client' ? (found?.address || '') : prev.shipToAddress,
             shipToPoc: shipToMode === 'client' ? (found?.poc || '') : prev.shipToPoc,
@@ -71,7 +74,7 @@ export default function DispatchForm() {
         }));
         setSelectedClient(found || null);
         setStats({});
-        setItems([{ id: Date.now(), desc: '', qty: '', amount: '', masterQty: 0, dispatchedSoFar: 0 }]);
+        setItems([{ id: Date.now(), desc: '', qty: '', amount: '', unit: '', masterQty: 0, dispatchedSoFar: 0, pendingQty: 0 }]);
     };
 
     const handleInstallerChange = (e) => {
@@ -80,6 +83,7 @@ export default function DispatchForm() {
         if (found) {
             setFormData(prev => ({
                 ...prev,
+                shipToInstallerId: found.id || null,
                 shipToAddress: found.address || '',
                 shipToPoc: found.poc || '',
                 shipToPhone: found.phone || '',
@@ -99,7 +103,7 @@ export default function DispatchForm() {
             try {
                 const { data: dispatchesData, error } = await supabase
                     .from('dispatches')
-                    .select('*, dispatch_items(*)')
+                    .select('*')
                     .ilike('client_name', `%${selectedClient.name.trim()}%`)
                     .ilike('project_name', `%${val.trim()}%`);
 
@@ -108,13 +112,10 @@ export default function DispatchForm() {
                 // AGGREGATE FROM BOTH SOURCES
                 const historyRaw = [];
                 (dispatchesData || []).forEach(d => {
-                    if (d.dispatch_items && d.dispatch_items.length > 0) {
-                        d.dispatch_items.forEach(item => {
-                            historyRaw.push({ desc: String(item.description || '').trim(), qty: Number(item.quantity) || 0 });
-                        });
-                    } else if (d.dispatch_data?.items && d.dispatch_data.items.length > 0) {
-                        d.dispatch_data.items.forEach(item => {
-                            historyRaw.push({ desc: String(item.desc || '').trim(), qty: Number(item.qty) || 0 });
+                    const items = d.items || (d.dispatch_data && d.dispatch_data.items) || [];
+                    if (items.length > 0) {
+                        items.forEach(item => {
+                            historyRaw.push({ desc: String(item.desc || item.description || '').trim(), qty: Number(item.qty || item.quantity) || 0 });
                         });
                     }
                 });
@@ -262,12 +263,13 @@ export default function DispatchForm() {
             const totalData = calculateTotal();
             const dispatch_id = `${formData.date}-IDE-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 
-            // 1. Insert Master Dispatch Record
-            const { data: dispatchRecord, error: dispatchError } = await supabase
+            // 1. Insert into dispatches table
+            const { data: dispatchRecord, error: dError } = await supabase
                 .from('dispatches')
                 .insert([{
-                    dispatch_id,
+                    dispatch_id: dispatch_id,
                     date: formData.date,
+                    client_id: formData.clientId,
                     client_name: formData.clientName,
                     project_name: formData.projectName,
                     ship_to_address: formData.shipToAddress,
@@ -275,31 +277,33 @@ export default function DispatchForm() {
                     ship_to_phone: formData.shipToPhone,
                     ship_to_email: formData.shipToEmail,
                     ship_to_mode: shipToMode,
+                    ship_to_installer_id: formData.shipToInstallerId,
                     dispatch_data: {
-                        items: items.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty })),
+                        items: items.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty, dispatchedSoFar: i.dispatchedSoFar, pendingQty: i.pendingQty })),
                         totals: totalData
-                    }
+                    },
+                    submitted_at: new Date().toISOString()
                 }])
                 .select()
                 .single();
 
-            if (dispatchError) throw dispatchError;
+            if (dError) throw dError;
 
-            // 2. Insert Relational Line Items for Tracking
-            const relationalItems = items.map(i => ({
-                dispatch_id: dispatchRecord.id, // Reference the UUID
+            // 2. Insert into dispatch_items table
+            const itemPayloads = items.map(i => ({
+                dispatch_id: dispatchRecord.id, // Linking to UUID of the header
                 description: i.desc,
-                quantity: Number(i.qty) || 0,
-                amount: Number(i.amount) || 0,
-                master_qty: Number(i.masterQty) || 0
+                quantity: i.qty,
+                amount: i.amount,
+                unit: i.unit,
+                master_qty: i.masterQty
             }));
 
-            if (relationalItems.length > 0) {
-                const { error: itemsError } = await supabase
-                    .from('dispatch_items')
-                    .insert(relationalItems);
-                if (itemsError) throw itemsError;
-            }
+            const { error: itemsError } = await supabase
+                .from('dispatch_items')
+                .insert(itemPayloads);
+
+            if (itemsError) throw itemsError;
 
             // 3. Sync to Google Sheets
             const apiUrl = import.meta.env.VITE_GOOGLE_CLIENTS_API_URL;
@@ -329,7 +333,7 @@ export default function DispatchForm() {
     };
 
     const addItem = () => {
-        setItems([...items, { id: Date.now(), desc: '', qty: '', amount: '', masterQty: 0, dispatchedSoFar: 0, pendingQty: 0 }]);
+        setItems([...items, { id: Date.now(), desc: '', qty: '', amount: '', unit: '', masterQty: 0, dispatchedSoFar: 0, pendingQty: 0 }]);
     };
 
     const removeItem = (id) => {
@@ -488,6 +492,16 @@ export default function DispatchForm() {
                                 className="w-full text-xs p-2 border border-gray-300 rounded-md bg-gray-50 focus:bg-white outline-none resize-none"
                             ></textarea>
                         </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-semibold text-gray-600 block">Email</label>
+                            <input
+                                type="email"
+                                value={formData.shipToEmail}
+                                onChange={e => setFormData({ ...formData, shipToEmail: e.target.value })}
+                                className="w-full text-xs p-2 border border-gray-300 rounded-md bg-gray-50 focus:bg-white outline-none"
+                                placeholder="client@email.com"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -566,6 +580,7 @@ export default function DispatchForm() {
                                 <th className="px-4 py-3 w-12 text-center">#</th>
                                 <th className="px-4 py-3">Description</th>
                                 <th className="px-4 py-3 w-24">Qty</th>
+                                <th className="px-4 py-3 w-24">Unit</th>
                                 <th className="px-4 py-3 w-32">Amount (₹)</th>
                                 <th className="px-4 py-3 w-12"></th>
                             </tr>

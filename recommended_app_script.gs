@@ -545,7 +545,6 @@ function api_syncSheetToSupabase_v3() {
     var headers = data[0].map(function(h) { return String(h).trim().toUpperCase(); });
     var rows = data.slice(1);
     
-    // Exact mapping based on your sheet structure
     function findIdx(keywords) {
       for (var k = 0; k < keywords.length; k++) {
         var key = keywords[k].toUpperCase();
@@ -569,16 +568,14 @@ function api_syncSheetToSupabase_v3() {
     var idxDID     = findIdx(['DISPATCH ID', 'ID', 'DID']);
     var idxTrack   = findIdx(['TRACKING ID', 'AWB']);
     var idxCourier = findIdx(['COURIER COMPANY', 'COURIER']);
-    var idxSlip    = findIdx(['COURIER SLIP LINK', 'SLIP LINK']);
 
     if (idxDID === -1) {
-      logMsg('Error: Could not find "Dispatch ID" column. Found: ' + headers.join('|'));
+      logMsg('Error: Could not find "Dispatch ID" column.');
       return;
     }
 
     var dispatchMap = {};
     var currentDID = null;
-    var itemsCount = 0;
 
     rows.forEach(function(row) {
       var did = String(row[idxDID] || '').trim();
@@ -604,25 +601,11 @@ function api_syncSheetToSupabase_v3() {
 
       var prodDesc = idxProd > -1 ? String(row[idxProd] || '').trim() : '';
       if (prodDesc && prodDesc !== '-' && prodDesc !== '') {
-        // Grouping logic within a dispatch to prevent duplicates from multiple sheet rows
-        var existingItem = dispatchMap[currentDID].items.find(function(it) {
-          return it.desc.toUpperCase() === prodDesc.toUpperCase();
+        dispatchMap[currentDID].items.push({
+          description: prodDesc,
+          quantity: idxQty > -1 ? Number(row[idxQty]) || 0 : 0,
+          amount: idxAmt > -1 ? Number(row[idxAmt]) || 0 : 0
         });
-
-        var q = idxQty > -1 ? Number(row[idxQty]) || 0 : 0;
-        var a = idxAmt > -1 ? Number(row[idxAmt]) || 0 : 0;
-
-        if (existingItem) {
-          existingItem.qty += q;
-          existingItem.amount += a;
-        } else {
-          dispatchMap[currentDID].items.push({
-            desc: prodDesc,
-            qty: q,
-            amount: a
-          });
-        }
-        itemsCount++;
       }
     });
 
@@ -632,21 +615,16 @@ function api_syncSheetToSupabase_v3() {
       return;
     }
 
-    // --- STEP 1: CLEAN RELOAD (Deduplication) ---
+    // --- STEP 1: CLEAN EXISTING ---
     var idsToClean = payloads.map(function(p) { return p.dispatch_id; });
     idsToClean.forEach(function(id) {
        supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatches?dispatch_id=eq.' + encodeURIComponent(id), 'DELETE');
     });
 
-    // --- STEP 2: PREPARE DISPATCHES ---
-    var dispatches = payloads.map(function(d) {
-      var totals = d.items.reduce(function(acc, item) {
-        acc.qty += item.qty;
-        acc.amount += item.amount;
-        return acc;
-      }, { qty: 0, amount: 0 });
-
-      return {
+    // --- STEP 2: INSERT HEADERS & ITEMS ---
+    var successCount = 0;
+    payloads.forEach(function(d) {
+      var headerPayload = {
         dispatch_id: d.dispatch_id,
         date: d.date,
         client_name: d.client_name,
@@ -657,57 +635,27 @@ function api_syncSheetToSupabase_v3() {
         ship_to_email: d.ship_to_email,
         tracking_id: d.tracking_id,
         courier_company: d.courier_company,
-        eway_bill_no: d.eway_bill_no,
-        dispatch_data: { items: d.items, totals: totals }
+        eway_bill_no: d.eway_bill_no
       };
-    });
 
-    // --- STEP 3: INSERT DISPATCHES ---
-    // We use return=representation to get the internal UUID IDs back
-    var resp = supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatches', 'POST', dispatches, { 
-      'Prefer': 'resolution=merge-duplicates,return=representation' 
-    });
-    
-    if (resp.error) {
-      logMsg('Error inserting dispatches: ' + JSON.stringify(resp.data));
-      return;
-    }
-
-    // --- STEP 3: INSERT RELATIONAL ITEMS ---
-    // Map the internal UUIDs to our sheet-side Dispatch IDs
-    var uuidMap = {};
-    if (resp.data && Array.isArray(resp.data)) {
-      resp.data.forEach(function(r) {
-        uuidMap[r.dispatch_id] = r.id; 
-      });
-    }
-
-    var itemsPayload = [];
-    payloads.forEach(function(p) {
-      var parentUuid = uuidMap[p.dispatch_id];
-      if (!parentUuid) return;
-      
-      p.items.forEach(function(item) {
-        itemsPayload.push({
-          dispatch_id: parentUuid,
-          description: item.desc,
-          quantity: item.qty,
-          amount: item.amount
+      var resp = supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatches', 'POST', headerPayload, { 'Prefer': 'return=representation' });
+      if (!resp.error && resp.data && resp.data[0]) {
+        var newId = resp.data[0].id;
+        var itemPayloads = d.items.map(function(it) {
+          it.dispatch_id = newId;
+          return it;
         });
-      });
+        if (itemPayloads.length > 0) {
+          supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatch_items', 'POST', itemPayloads);
+        }
+        successCount++;
+      }
     });
 
-    if (itemsPayload.length > 0) {
-      var itemResp = supabaseRestCall(SUPABASE_URL, SUPABASE_KEY, 'dispatch_items', 'POST', itemsPayload);
-      if (itemResp.error) {
-        logMsg('Warning: Items sync had issues: ' + JSON.stringify(itemResp.data));
-      }
-    }
-
-    logMsg('Sync Successful! Verified ' + payloads.length + ' dispatches and ' + itemsCount + ' manifest items from "Masters_Normalized_Verify".');
+    logMsg('Sync Successful! Restored ' + successCount + ' dispatches with their items to dispatches/dispatch_items tables.');
 
   } catch (err) {
-    logMsg('Critical Sync Error: ' + String(err));
+    logMsg('Sync Error: ' + String(err));
   }
 }
 
@@ -750,6 +698,7 @@ function handleCreateDispatch(data) {
         if (colMap[key] !== undefined) row[colMap[key]] = val;
       }
       
+      set('TIMESTAMP', new Date());
       set('DATE', data.date);
       set('CLIENT NAME', data.client_name);
       set('PROJECT', data.project_name);
@@ -863,7 +812,7 @@ function checkAndAlertPendingDispatches() {
   var cutoffIso = twoDaysAgo.toISOString();
   
   // Fetch dispatches missing emails AND from Jan 2026 onwards
-  var path = 'dispatches?email_sent_at=is.null&date=gte.2026-01-01&date=lt.' + encodeURIComponent(cutoffIso) + '&select=*&is_archived=eq.false';
+  var path = '6_Dispatch?email_sent_at=is.null&date=gte.2026-01-01&date=lt.' + encodeURIComponent(cutoffIso) + '&select=*&is_archived=eq.false';
   
   var result = supabaseRestCall(SUPABASE_URL, SUPABASE_ANON_KEY, path, 'GET', null);
   

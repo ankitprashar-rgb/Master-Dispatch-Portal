@@ -21,7 +21,7 @@ async function updateAmazonCourier() {
 
     // Update records where ship_to_poc is 'Amazon Seller Service'
     const { data, error, count } = await supabase
-        .from('dispatches')
+        .from('6_Dispatch')
         .update({ courier_company: 'Amazon Courier Service' })
         .or('ship_to_poc.eq."Amazon Seller Service",dispatch_data->>shipToPoc.eq."Amazon Seller Service"')
         .select('id, dispatch_id');

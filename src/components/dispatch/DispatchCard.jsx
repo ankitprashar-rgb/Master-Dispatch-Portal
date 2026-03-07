@@ -19,7 +19,7 @@ export default function DispatchCard({
     const [isEmailLoading, setIsEmailLoading] = useState(false);
     const [isEmailSuccess, setIsEmailSuccess] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [email, setEmail] = useState(data.client_email || data.dispatch_data?.clientEmail || '');
+    const [email, setEmail] = useState(data.ship_to_email || data.dispatch_data?.shipToEmail || data.client_email || '');
     const [previewUrl, setPreviewUrl] = useState(data.courier_slip_url || '');
     const [ewayBillUrl, setEwayBillUrl] = useState(data.eway_bill_url || '');
     const [isEwayUploading, setIsEwayUploading] = useState(false);
@@ -37,12 +37,17 @@ export default function DispatchCard({
     }, [data.courier_company]);
 
     // Unified Items Logic (Prefer relational items, fallback to JSONB)
+    // Consolidate Items from various potential sources (now centralized in 'items')
     const isArchived = !!data.is_archived;
-    const items = (data.dispatch_items && data.dispatch_items.length > 0)
-        ? data.dispatch_items.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, masterQty: i.master_qty }))
-        : (data.dispatch_data?.items?.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty })) || []);
-    const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-    const totalAmount = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const items = (data.items && data.items.length > 0)
+        ? data.items.map(i => ({ desc: i.desc || i.description, qty: i.qty || i.quantity, amount: i.amount, unit: i.unit, masterQty: i.masterQty || i.master_qty }))
+        : (data.dispatch_items && data.dispatch_items.length > 0)
+            ? data.dispatch_items.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, unit: i.unit, masterQty: i.master_qty }))
+            : (data.dispatch_data?.items?.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, unit: i.unit, masterQty: i.masterQty })) || []);
+    const totalQty = data.total_qty || items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+    const totalAmount = data.total_amount || items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const subtotal = data.subtotal || items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const gst = data.gst || (subtotal * 0.18);
 
     // Status Logic (Revised) — must come after totalAmount is defined
     const requiresEway = totalAmount > 50000;
@@ -59,7 +64,7 @@ export default function DispatchCard({
     };
 
     const handleSaveEmail = () => {
-        onUpdate(data.id, 'client_email', email);
+        onUpdate(data.id, 'ship_to_email', email);
     };
 
     const handleArchive = () => {

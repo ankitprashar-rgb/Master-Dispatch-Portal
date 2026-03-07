@@ -16,14 +16,15 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function checkCount() {
     const { count, error } = await supabase
-        .from('dispatches')
+        .from('6_Dispatch')
         .select('*', { count: 'exact', head: true });
 
     if (error) {
-        console.error('Error fetching count:', error);
-    } else {
-        console.log('Total records in dispatches table:', count);
+        console.error('Error fetching data:', error);
+        return;
     }
+
+    console.log('Total records in 6_Dispatch table:', count);
 }
 
 checkCount();

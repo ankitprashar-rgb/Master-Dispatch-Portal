@@ -138,15 +138,16 @@ export default function DispatchPDF({ data }) {
         shipToPoc: data.ship_to_poc || data.shipToPoc || 'N/A',
         shipToPhone: data.ship_to_phone || data.shipToPhone || 'N/A',
         items: (() => {
-            let rawItems = [];
-            if (data.items && data.items.length > 0) {
-                rawItems = data.items.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty }));
-            } else if (data.dispatch_items && data.dispatch_items.length > 0) {
-                rawItems = data.dispatch_items.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, masterQty: i.master_qty }));
-            } else if (data.dispatch_data?.items && data.dispatch_data.items.length > 0) {
-                rawItems = data.dispatch_data.items.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, masterQty: i.masterQty }));
+            const sourceItems = data.items || data.dispatch_items || data.dispatch_data?.items || [];
+            if (sourceItems.length > 0) {
+                // Determine format and map
+                if (data.items || data.dispatch_data?.items) {
+                    return sourceItems.map(i => ({ desc: i.desc, qty: i.qty, amount: i.amount, unit: i.unit, masterQty: i.masterQty })).filter(i => Number(i.qty) > 0);
+                } else if (data.dispatch_items) {
+                    return sourceItems.map(i => ({ desc: i.description, qty: i.quantity, amount: i.amount, unit: i.unit, masterQty: i.master_qty })).filter(i => Number(i.qty) > 0);
+                }
             }
-            return rawItems.filter(i => Number(i.qty) > 0);
+            return [];
         })()
 
     };
@@ -162,46 +163,14 @@ export default function DispatchPDF({ data }) {
         items
     } = normalizedData;
 
-    const totalQty = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
-    const subtotal = items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-    const gst = subtotal * 0.18;
-    const total = subtotal + gst;
+    const totalQty = data.total_qty || items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+    const subtotal = data.subtotal || items.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
+    const gst = data.gst || (subtotal * 0.18);
+    const total = data.total_amount || (subtotal + gst);
 
     return (
         <Document>
-            {/* PAGE 1: SHIPPING LABEL */}
-            <Page size="A4" style={styles.page}>
-                <View style={styles.header}>
-                    <Image style={styles.logo} src="https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png" />
-                    <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 10, color: 'gray' }}>Dispatch ID: {dispatchId}</Text>
-                        <Text style={{ fontSize: 10, color: 'gray' }}>Date: {format(new Date(date), 'dd MMM yyyy')}</Text>
-                    </View>
-                </View>
-
-                <View style={styles.labelBox}>
-                    <Text style={styles.labelTitle}>SHIPPING LABEL</Text>
-
-                    <View style={{ marginTop: 20, alignItems: 'center' }}>
-                        <Text style={{ fontSize: 12, color: 'gray', marginBottom: 5 }}>SHIP TO:</Text>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{shipToPoc || clientName}</Text>
-                        <Text style={styles.labelText}>{clientName}</Text>
-                        <Text style={styles.labelText}>{shipToAddress}</Text>
-                        <Text style={{ fontSize: 12, marginTop: 5 }}>Phone: {shipToPhone}</Text>
-                    </View>
-
-                    <View style={{ marginTop: 40, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 20, width: '100%' }}>
-                        <Text style={{ fontSize: 10, color: 'gray' }}>PROJECT:</Text>
-                        <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{projectName}</Text>
-                    </View>
-                </View>
-
-                <View style={styles.footer}>
-                    <Text>IDE Autoworks | 192, Sector 27, Gurugram, Haryana - 122009</Text>
-                </View>
-            </Page>
-
-            {/* PAGE 2: DELIVERY CHALLAN */}
+            {/* PAGE 1: DELIVERY CHALLAN */}
             <Page size="A4" style={styles.page}>
                 <View style={styles.header}>
                     <Image style={styles.logo} src="https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png" />
@@ -248,7 +217,7 @@ export default function DispatchPDF({ data }) {
                                 <Text style={styles.tableCell}>{item.desc}</Text>
                             </View>
                             <View style={[styles.tableCol, { width: '15%' }]}>
-                                <Text style={styles.tableCell}>{item.qty}</Text>
+                                <Text style={styles.tableCell}>{item.qty} {item.unit || ''}</Text>
                             </View>
                             <View style={[styles.tableCol, { width: '25%' }]}>
                                 <Text style={styles.tableCell}>{formatCurrency(item.amount)}</Text>
@@ -266,6 +235,38 @@ export default function DispatchPDF({ data }) {
 
                 <View style={styles.footer}>
                     <Text>This is a computer generated document.</Text>
+                </View>
+            </Page>
+
+            {/* PAGE 2: SHIPPING LABEL */}
+            <Page size="A4" style={styles.page}>
+                <View style={styles.header}>
+                    <Image style={styles.logo} src="https://res.cloudinary.com/du5vwtwvr/image/upload/v1762093742/IDE_Black_igvryv.png" />
+                    <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 10, color: 'gray' }}>Dispatch ID: {dispatchId}</Text>
+                        <Text style={{ fontSize: 10, color: 'gray' }}>Date: {format(new Date(date), 'dd MMM yyyy')}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.labelBox}>
+                    <Text style={styles.labelTitle}>SHIPPING LABEL</Text>
+
+                    <View style={{ marginTop: 20, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 12, color: 'gray', marginBottom: 5 }}>SHIP TO:</Text>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{shipToPoc || clientName}</Text>
+                        <Text style={styles.labelText}>{clientName}</Text>
+                        <Text style={styles.labelText}>{shipToAddress}</Text>
+                        <Text style={{ fontSize: 12, marginTop: 5 }}>Phone: {shipToPhone}</Text>
+                    </View>
+
+                    <View style={{ marginTop: 40, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 20, width: '100%' }}>
+                        <Text style={{ fontSize: 10, color: 'gray' }}>PROJECT:</Text>
+                        <Text style={{ fontSize: 14, fontWeight: 'bold' }}>{projectName}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.footer}>
+                    <Text>IDE Autoworks | 192, Sector 27, Gurugram, Haryana - 122009</Text>
                 </View>
             </Page>
         </Document>
