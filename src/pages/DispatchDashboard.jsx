@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Loader2, Calendar, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import * as XLSX from 'xlsx';
 import { format, subDays, startOfWeek, startOfMonth, startOfToday, startOfYesterday, endOfToday, endOfYesterday, subMonths, endOfMonth } from 'date-fns';
 import { cn } from '../lib/utils';
 import DispatchCard from '../components/dispatch/DispatchCard';
@@ -192,21 +193,25 @@ export default function DispatchDashboard() {
 
             return [
                 format(new Date(d.date), 'dd/MM/yyyy'),
-                `"${d.client_name || ''}"`,
-                `"${d.ship_to_email || d.dispatch_data?.shipToEmail || d.client_email || ''}"`,
-                `"${(d.ship_to_address || d.dispatch_data?.shipToAddress || '').replace(/"/g, '""')}"`,
-                `"${d.project_name || ''}"`,
-                `"${itemStr.replace(/"/g, '""')}"`,
-                `"${courierStr.replace(/"/g, '""')}"`
+                d.client_name || '',
+                d.ship_to_email || d.dispatch_data?.shipToEmail || d.client_email || '',
+                d.ship_to_address || d.dispatch_data?.shipToAddress || '',
+                d.project_name || '',
+                itemStr,
+                courierStr
             ];
         });
 
-        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `tracking_export_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
-        link.click();
+        // Prepend headers
+        const excelData = [headers, ...rows];
+
+        // Create workbook and worksheet
+        const ws = XLSX.utils.aoa_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Dispatches");
+
+        // Generate Excel file and trigger download
+        XLSX.writeFile(wb, `tracking_export_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
     };
 
     // Client-side Search
