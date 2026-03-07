@@ -112,7 +112,7 @@ export default function TrackingSheet() {
                 from: format(startOfMonth(today), 'yyyy-MM-dd'),
                 to: format(endOfMonth(today), 'yyyy-MM-dd')
             });
-        } else if (preset === 'clear') {
+        } else if (preset === 'clear' || preset === 'all_time') {
             setDateRange({ from: '', to: '' });
         }
     };
@@ -206,16 +206,16 @@ export default function TrackingSheet() {
                         </div>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-gray-600 block">Preset</label>
+                        <label className="text-[10px] font-semibold text-gray-600 block">Time Period</label>
                         <select
                             onChange={(e) => applyDatePreset(e.target.value)}
                             className="text-xs p-2 border border-gray-300 rounded-md bg-gray-50 focus:bg-white outline-none"
-                            defaultValue=""
+                            defaultValue="custom"
                         >
-                            <option value="" disabled>Select...</option>
                             <option value="this_month">This Month</option>
                             <option value="last_month">Last Month</option>
-                            <option value="clear">Clear Dates</option>
+                            <option value="custom">Custom Dates</option>
+                            <option value="all_time">All-Time</option>
                         </select>
                     </div>
 
@@ -238,6 +238,16 @@ export default function TrackingSheet() {
                         />
                     </div>
 
+                    {/* EXPORT BUTTON IMMEDIATELY AFTER DATES */}
+                    <div className="pb-[1px]">
+                        <button
+                            onClick={handleExport}
+                            className="flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-[11px] font-bold hover:bg-gray-50 shadow-sm h-[34px]"
+                        >
+                            <Download size={14} /> Export CSV
+                        </button>
+                    </div>
+
                     <div className="flex items-center gap-2 pb-2 ml-4">
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input
@@ -251,18 +261,12 @@ export default function TrackingSheet() {
                         </label>
                     </div>
 
-                    <div className="flex items-center gap-3 ml-auto pb-1">
-                        <button
-                            onClick={handleExport}
-                            className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-[11px] font-bold hover:bg-gray-50 shadow-sm"
-                        >
-                            <Download size={14} /> Export CSV
-                        </button>
+                    <div className="flex flex-1 justify-end items-center gap-3 pb-1">
                         <button
                             onClick={fetchDispatches}
-                            className="flex items-center gap-2 px-6 py-2 rounded-full bg-[#d4de47] border border-[#c2cc3e] text-gray-900 text-[11px] font-black uppercase tracking-widest hover:bg-[#c2cc3e] shadow-sm transition-all"
+                            className="flex items-center justify-center gap-2 px-6 py-2 rounded-full bg-[#d4de47] border border-[#c2cc3e] text-gray-900 text-[11px] font-black uppercase tracking-widest hover:bg-[#c2cc3e] shadow-sm transition-all"
                         >
-                            <Filter size={14} /> Apply
+                            <Filter size={14} /> Apply Filter
                         </button>
                     </div>
                 </div>
