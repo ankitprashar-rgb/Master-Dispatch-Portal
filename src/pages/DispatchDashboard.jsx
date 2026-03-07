@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Loader2, Calendar } from 'lucide-react';
+import { Search, Filter, Loader2, Calendar, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { format, subDays, startOfWeek, startOfMonth, startOfToday, startOfYesterday, endOfToday, endOfYesterday } from 'date-fns';
+import { format, subDays, startOfWeek, startOfMonth, startOfToday, startOfYesterday, endOfToday, endOfYesterday, subMonths, endOfMonth } from 'date-fns';
 import { cn } from '../lib/utils';
 import DispatchCard from '../components/dispatch/DispatchCard';
 import DispatchPreview from '../components/dispatch/DispatchPreview';
@@ -10,7 +10,7 @@ export default function DispatchDashboard() {
     const [dispatches, setDispatches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeFilter, setActiveFilter] = useState('3Days'); // Today, Yesterday, Last 3, Last 7, Month, All
+    const [activeFilter, setActiveFilter] = useState('3Days'); // Today, Yesterday, Last 3, Last 7, Month, LastMonth, All
     const [activeTab, setActiveTab] = useState('active'); // active, archive
     const [customRange, setCustomRange] = useState({ from: '', to: '' });
     const [previewData, setPreviewData] = useState(null);
@@ -46,6 +46,7 @@ export default function DispatchDashboard() {
         { label: 'Last 3 Days', value: '3Days' },
         { label: 'Last 7 Days', value: '7Days' },
         { label: 'This Month', value: 'Month' },
+        { label: 'Last Month', value: 'LastMonth' },
         { label: 'All', value: 'All' },
     ];
 
@@ -71,6 +72,10 @@ export default function DispatchDashboard() {
                 query = query.gte('date', format(subDays(today, 7), 'yyyy-MM-dd'));
             } else if (activeFilter === 'Month') {
                 query = query.gte('date', format(startOfMonth(today), 'yyyy-MM-dd'));
+            } else if (activeFilter === 'LastMonth') {
+                const lastMonth = subMonths(today, 1);
+                query = query.gte('date', format(startOfMonth(lastMonth), 'yyyy-MM-dd'))
+                    .lte('date', format(endOfMonth(lastMonth), 'yyyy-MM-dd'));
             } else if (activeFilter === 'Custom' && customRange.from && customRange.to) {
                 query = query.gte('date', customRange.from).lte('date', customRange.to);
             }
@@ -168,6 +173,40 @@ export default function DispatchDashboard() {
         } catch (error) {
             console.error('Error recording print:', error);
         }
+    };
+
+    // Handle Export
+    const handleExport = () => {
+        if (filteredData.length === 0) {
+            alert("No records to export.");
+            return;
+        }
+
+        const headers = ["DATE", "CLIENT NAME", "CLIENT EMAIL", "SHIPPING ADDRESS", "PROJECT NAME", "IN LINE PRODUCTS AND THEIR QTY", "COURIER SLIP DETAILS"];
+
+        const rows = filteredData.map(d => {
+            const items = d.dispatch_items || d.items || d.dispatch_data?.items || [];
+            const itemStr = items.map(i => `${i.desc || i.description || ''} (${i.qty || i.quantity || 0})`).join(', ');
+
+            const courierStr = [d.tracking_id || d.dispatch_data?.trackingId, d.courier_company || d.dispatch_data?.courierCompany].filter(Boolean).join(' - ');
+
+            return [
+                format(new Date(d.date), 'dd/MM/yyyy'),
+                `"${d.client_name || ''}"`,
+                `"${d.ship_to_email || d.dispatch_data?.shipToEmail || d.client_email || ''}"`,
+                `"${(d.ship_to_address || d.dispatch_data?.shipToAddress || '').replace(/"/g, '""')}"`,
+                `"${d.project_name || ''}"`,
+                `"${itemStr.replace(/"/g, '""')}"`,
+                `"${courierStr.replace(/"/g, '""')}"`
+            ];
+        });
+
+        const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `tracking_export_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
+        link.click();
     };
 
     // Client-side Search
@@ -275,6 +314,14 @@ export default function DispatchDashboard() {
                                 />
                             </div>
                         </div>
+
+                        {/* Export Button */}
+                        <button
+                            onClick={handleExport}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-700 text-[10px] font-black uppercase tracking-tight hover:bg-gray-50 shadow-sm transition-all"
+                        >
+                            <Download size={12} /> Export CSV
+                        </button>
                     </div>
 
                     {/* Search Bar */}
