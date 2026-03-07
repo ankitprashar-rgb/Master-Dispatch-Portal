@@ -36,6 +36,17 @@ export default function DispatchCard({
         setLocalCourier(data.courier_company || '');
     }, [data.courier_company]);
 
+    // Handle ESC key to close modal
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') setIsOpen(false);
+        };
+        if (isOpen) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen]);
+
     // Unified Items Logic (Prefer relational items, fallback to JSONB)
     // Consolidate Items from various potential sources (now centralized in 'items')
     const isArchived = !!data.is_archived;

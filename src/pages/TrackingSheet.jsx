@@ -251,18 +251,18 @@ export default function TrackingSheet() {
                         </label>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-auto">
+                    <div className="flex items-center gap-3 ml-auto pb-1">
                         <button
                             onClick={handleExport}
-                            className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-xs font-bold hover:bg-gray-50 shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 bg-white text-gray-700 text-[11px] font-bold hover:bg-gray-50 shadow-sm"
                         >
                             <Download size={14} /> Export CSV
                         </button>
                         <button
                             onClick={fetchDispatches}
-                            className="flex items-center gap-2 px-4 py-2 rounded-full bg-brand text-gray-900 text-xs font-bold hover:bg-brand-hover shadow-sm"
+                            className="flex items-center gap-2 px-6 py-2 rounded-full bg-[#d4de47] border border-[#c2cc3e] text-gray-900 text-[11px] font-black uppercase tracking-widest hover:bg-[#c2cc3e] shadow-sm transition-all"
                         >
-                            <Filter size={14} /> Apply Filter
+                            <Filter size={14} /> Apply
                         </button>
                     </div>
                 </div>
